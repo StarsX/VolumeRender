@@ -73,7 +73,9 @@ void ParticleSys::UpdateFrame(CXMMATRIX& view, CXMMATRIX& proj, const XMFLOAT3& 
 	// General matrices
 	const auto world = getWorldMatrix();
 	const auto worldView = world * view;
+	const auto worldViewI = XMMatrixInverse(nullptr, worldView);
 	XMStoreFloat4x4(&m_cbPerObject.WorldView, XMMatrixTranspose(worldView));
+	XMStoreFloat4x4(&m_cbPerObject.WorldViewI, XMMatrixTranspose(worldViewI));
 	XMStoreFloat4x4(&m_cbPerObject.Proj, XMMatrixTranspose(proj));
 	m_cbPerObject.EyePt = eyePt;
 }

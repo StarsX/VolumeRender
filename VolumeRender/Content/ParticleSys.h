@@ -48,6 +48,7 @@ protected:
 	struct CBPerObject
 	{
 		DirectX::XMFLOAT4X4 WorldView;
+		DirectX::XMFLOAT4X4 WorldViewI;
 		DirectX::XMFLOAT4X4 Proj;
 		DirectX::XMFLOAT3 EyePt;
 	};

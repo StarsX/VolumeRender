@@ -58,7 +58,7 @@ void main(uint DTid : SV_DispatchThreadID)
 	Particle particle;
 	float3 tex;
 	
-	for (uint i = 0; i < 64; ++i)
+	for (uint i = 0; i < 1024; ++i)
 	{
 		tex.x = rand(seed, 10000) / 9999.0;
 		tex.y = rand(seed, 10000) / 9999.0;
