@@ -2,13 +2,15 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#include "WeightedAlpha.hlsli"
+
 //--------------------------------------------------------------------------------------
 // Structure
 //--------------------------------------------------------------------------------------
 struct PSIn
 {
 	float4 Pos : SV_POSITION;
-	float3 Tex : TEXCOORD;
+	float4 Tex : TEXCOORD;
 	float3 Color : COLOR;
 	float2 Domain : DOMAIN;
 };
@@ -25,7 +27,24 @@ SamplerState g_smpLinear;
 
 float4 main(PSIn input) : SV_TARGET
 {
-	const float3 light = g_txLightMap.SampleLevel(g_smpLinear, input.Tex, 0.0);
+	const float2 disp = input.Domain * 2.0 - 1.0;
+	const float r_sq = dot(disp, disp);
+	float a = 1.0 - r_sq;
+	clip(a);
 
-	return float4(input.Color * light, 0.1);
+	const float3 light = g_txLightMap.SampleLevel(g_smpLinear, input.Tex.xyz, 0.0);
+	
+	/*const float range = saturate((input.Pos.z - 1.5) / -2.5);
+	const float rangeInv = 1.0 - range;
+	a *= range * rangeInv * rangeInv;*/
+	a *= a * 0.25;
+	//a *= DepthWeight0(input.Tex.w);
+	a *= DepthWeight1(input.Pos.w);
+	//a *= DepthWeight2(input.Pos.w);
+	//a *= DepthWeight3(input.Pos.w);
+	//a *= DepthWeight4(input.Pos.z);
+
+	const float3 color = input.Color * light;
+	
+	return float4(color, a);
 }

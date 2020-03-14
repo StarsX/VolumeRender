@@ -39,7 +39,7 @@ uint rand(inout uint seed)
 	// msvcrt.dll: 77C271EF and     eax, 7FFFh
 	seed = seed * 0x343fd + 0x269ec3;   // a = 214013, b = 2531011
 
-	return (seed >> 0x10)& RAND_MAX;
+	return (seed >> 0x10) & RAND_MAX;
 }
 
 //--------------------------------------------------------------------------------------
@@ -65,7 +65,9 @@ void main(uint DTid : SV_DispatchThreadID)
 		tex.z = rand(seed, 10000) / 9999.0;
 
 		particle.Color = g_txGrid.SampleLevel(g_smpLinear, tex, 0.0);
-		if (rand(seed, 10000) / 9999.0 <= particle.Color.w) break;
+		//if (rand(seed, 10000) / 9999.0 <= particle.Color.w) break;
+		//if (particle.Color.w > 0.25) break;
+		if (max(rand(seed, 10000) / 9999.0, 0.25) <= particle.Color.w) break;
 	}
 
 	particle.Pos = float4(tex * 2.0 - 1.0, 1.0);

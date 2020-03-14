@@ -19,7 +19,7 @@ public:
 		XUSG::Format dsFormat, uint32_t numParticles);
 
 	void GenerateParticles(const XUSG::CommandList& commandList, const XUSG::DescriptorTable& srvTable);
-	void UpdateFrame(const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& proj);
+	void UpdateFrame(DirectX::CXMMATRIX& view, DirectX::CXMMATRIX& proj, const DirectX::XMFLOAT3& eyePt);
 	void Render(const XUSG::CommandList& commandList, XUSG::ResourceBase& lightMap,
 		const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& rtv,
 		const XUSG::Descriptor& dsv);
@@ -49,6 +49,7 @@ protected:
 	{
 		DirectX::XMFLOAT4X4 WorldView;
 		DirectX::XMFLOAT4X4 Proj;
+		DirectX::XMFLOAT3 EyePt;
 	};
 
 	struct ParticleInfo

@@ -68,13 +68,14 @@ void ParticleSys::GenerateParticles(const CommandList& commandList, const Descri
 	commandList.Dispatch(DIV_UP(m_numParticles, 64), 1, 1);
 }
 
-void ParticleSys::UpdateFrame(const XMMATRIX& view, const XMMATRIX& proj)
+void ParticleSys::UpdateFrame(CXMMATRIX& view, CXMMATRIX& proj, const XMFLOAT3& eyePt)
 {
 	// General matrices
 	const auto world = getWorldMatrix();
 	const auto worldView = world * view;
 	XMStoreFloat4x4(&m_cbPerObject.WorldView, XMMatrixTranspose(worldView));
 	XMStoreFloat4x4(&m_cbPerObject.Proj, XMMatrixTranspose(proj));
+	m_cbPerObject.EyePt = eyePt;
 }
 
 void ParticleSys::Render(const CommandList& commandList, ResourceBase& lightMap,
@@ -123,7 +124,7 @@ bool ParticleSys::createPipelineLayouts()
 	// Weight blending
 	{
 		Util::PipelineLayout pipelineLayout;
-		pipelineLayout.SetConstants(0, SizeOfInUint32(XMFLOAT4X4[2]), 0, 0, Shader::VS);
+		pipelineLayout.SetConstants(0, SizeOfInUint32(CBPerObject), 0, 0, Shader::VS);
 		pipelineLayout.SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout.SetRange(2, DescriptorType::SRV, 1, 0);
 		pipelineLayout.SetRange(3, DescriptorType::SAMPLER, 1, 0);
@@ -148,7 +149,7 @@ bool ParticleSys::createPipelineLayouts()
 	// Show particles
 	{
 		Util::PipelineLayout pipelineLayout;
-		pipelineLayout.SetConstants(0, SizeOfInUint32(XMFLOAT4X4[2]), 0, 0, Shader::VS);
+		pipelineLayout.SetConstants(0, SizeOfInUint32(CBPerObject), 0, 0, Shader::VS);
 		pipelineLayout.SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout.SetRange(2, DescriptorType::SRV, 1, 0);
 		pipelineLayout.SetRange(3, DescriptorType::SAMPLER, 1, 0);

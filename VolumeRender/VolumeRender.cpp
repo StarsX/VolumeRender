@@ -37,7 +37,7 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_isPaused(false),
 	m_tracking(false),
 	m_gridSize(128, 128, 128),
-	m_numParticles(1 << 16)
+	m_numParticles(1 << 14)
 {
 #if defined (_DEBUG)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -226,7 +226,7 @@ void VolumeRender::OnUpdate()
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
 	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, eyePt);
-	m_particleSys->UpdateFrame(view, proj);
+	m_particleSys->UpdateFrame(view, proj, m_eyePt);
 }
 
 // Render the scene.
