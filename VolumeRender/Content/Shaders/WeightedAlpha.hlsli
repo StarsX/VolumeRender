@@ -4,7 +4,7 @@
 
 float DepthWeight0(float zInv)
 {
-	return max(0.25 * pow(abs(zInv), 1.0 / 3.0), 0.01);
+	return max(pow(abs(zInv), 1.0 / 3.0), 0.01);
 }
 
 float DepthWeight1(float w)
@@ -18,7 +18,7 @@ float DepthWeight1(float w)
 
 	const float dnorm = z_6_term + z_sq_term + pow(10.0, -5.0);
 
-	return clamp(10.0 / dnorm, 0.1, 3000.0);
+	return clamp(10.0 / dnorm, 0.01, 3000.0);
 }
 
 float DepthWeight2(float w)
@@ -32,7 +32,7 @@ float DepthWeight2(float w)
 
 	const float dnorm = z_6_term + z_cb_term + pow(10.0, -5.0);
 
-	return clamp(10.0 / dnorm, 0.1, 3000.0);
+	return clamp(10.0 / dnorm, 0.01, 3000.0);
 }
 
 float DepthWeight3(float w)
@@ -43,12 +43,12 @@ float DepthWeight3(float w)
 
 	const float dnorm = z_qd_term + pow(10.0, -5.0);
 
-	return clamp(0.03 / dnorm, 0.1, 3000.0);
+	return clamp(0.03 / dnorm, 0.01, 3000.0);
 }
 
 float DepthWeight4(float z)
 {
 	const float zInv = 1.0 - z;
 
-	return max(3000.0 * zInv * zInv * zInv, 0.1);
+	return max(3000.0 * zInv * zInv * zInv, 0.01);
 }
