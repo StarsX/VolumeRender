@@ -486,7 +486,7 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 			windowText << L"Ray marching without splitted lighting pass";
 			break;
 		case RAY_MARCH_SPLITTED:
-			windowText << L"Ray marching without splitted lighting pass";
+			windowText << L"Ray marching with splitted lighting pass";
 			break;
 		case PARTICLE_OIT:
 			windowText << L"Particle rendering with OIT";
