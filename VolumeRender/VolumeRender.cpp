@@ -162,14 +162,14 @@ void VolumeRender::LoadAssets()
 		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_gridSize))
 		ThrowIfFailed(E_FAIL);
 
-	m_particleSys = make_unique<ParticleSys>(m_device);
-	if (!m_particleSys) ThrowIfFailed(E_FAIL);
-	if (!m_particleSys->Init(m_commandList, m_width, m_height, m_descriptorTableCache, uploaders,
+	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
+	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
+	if (!m_particleRenderer->Init(m_commandList, m_width, m_height, m_descriptorTableCache, uploaders,
 		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_numParticles))
 		ThrowIfFailed(E_FAIL);
 
 	m_rayCaster->InitGridData(m_commandList);
-	m_particleSys->GenerateParticles(m_commandList, m_rayCaster->GetGridSRVTable(m_commandList));
+	m_particleRenderer->GenerateParticles(m_commandList, m_rayCaster->GetGridSRVTable(m_commandList));
 
 	// Close the command list and execute it to begin the initial GPU setup.
 	ThrowIfFailed(m_commandList.Close());
@@ -226,7 +226,7 @@ void VolumeRender::OnUpdate()
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
 	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, eyePt);
-	m_particleSys->UpdateFrame(view, proj, m_eyePt);
+	m_particleRenderer->UpdateFrame(view, proj, m_eyePt);
 }
 
 // Render the scene.
@@ -405,12 +405,12 @@ void VolumeRender::PopulateCommandList()
 		break;
 	case PARTICLE_OIT:
 		m_rayCaster->RayMarchL(m_commandList, m_frameIndex);
-		m_particleSys->Render(m_commandList, m_rayCaster->GetLightMap(),
+		m_particleRenderer->Render(m_commandList, m_rayCaster->GetLightMap(),
 			m_rayCaster->GetLightSRVTable(), m_renderTargets[m_frameIndex].GetRTV(), m_depth.GetDSV());
 		break;
 	default:
 		m_rayCaster->RayMarchL(m_commandList, m_frameIndex);
-		m_particleSys->ShowParticles(m_commandList, m_rayCaster->GetLightMap(),
+		m_particleRenderer->ShowParticles(m_commandList, m_rayCaster->GetLightMap(),
 			m_rayCaster->GetLightSRVTable());
 	}
 	
@@ -489,10 +489,10 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 			windowText << L"Ray marching with splitted lighting pass";
 			break;
 		case PARTICLE_OIT:
-			windowText << L"Particle rendering with OIT";
+			windowText << L"Particle rendering with weighted blended OIT";
 			break;
 		default:
-			windowText << L"Simple rarticle rendering";
+			windowText << L"Simple particle rendering";
 		}
 
 		SetCustomWindowText(windowText.str().c_str());

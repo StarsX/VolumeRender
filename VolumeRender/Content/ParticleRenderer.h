@@ -7,11 +7,11 @@
 #include "DXFramework.h"
 #include "Core/XUSG.h"
 
-class ParticleSys
+class ParticleRenderer
 {
 public:
-	ParticleSys(const XUSG::Device& device);
-	virtual ~ParticleSys();
+	ParticleRenderer(const XUSG::Device& device);
+	virtual ~ParticleRenderer();
 
 	bool Init(const XUSG::CommandList& commandList, uint32_t width, uint32_t height,
 		std::shared_ptr<XUSG::DescriptorTableCache> descriptorTableCache,

@@ -2,13 +2,13 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#include "ParticleSys.h"
+#include "ParticleRenderer.h"
 
 using namespace std;
 using namespace DirectX;
 using namespace XUSG;
 
-ParticleSys::ParticleSys(const Device& device) :
+ParticleRenderer::ParticleRenderer(const Device& device) :
 	m_device(device)
 {
 	m_graphicsPipelineCache.SetDevice(device);
@@ -16,11 +16,11 @@ ParticleSys::ParticleSys(const Device& device) :
 	m_pipelineLayoutCache.SetDevice(device);
 }
 
-ParticleSys::~ParticleSys()
+ParticleRenderer::~ParticleRenderer()
 {
 }
 
-bool ParticleSys::Init(const CommandList& commandList, uint32_t width, uint32_t height,
+bool ParticleRenderer::Init(const CommandList& commandList, uint32_t width, uint32_t height,
 	shared_ptr<DescriptorTableCache> descriptorTableCache, vector<Resource>& uploaders,
 	Format rtFormat, Format dsFormat, uint32_t numParticles)
 {
@@ -45,7 +45,7 @@ bool ParticleSys::Init(const CommandList& commandList, uint32_t width, uint32_t 
 	return true;
 }
 
-void ParticleSys::GenerateParticles(const CommandList& commandList, const DescriptorTable& srvTable)
+void ParticleRenderer::GenerateParticles(const CommandList& commandList, const DescriptorTable& srvTable)
 {
 	// Record commands.
 	const DescriptorPool descriptorPools[] =
@@ -68,7 +68,7 @@ void ParticleSys::GenerateParticles(const CommandList& commandList, const Descri
 	commandList.Dispatch(DIV_UP(m_numParticles, 64), 1, 1);
 }
 
-void ParticleSys::UpdateFrame(CXMMATRIX& view, CXMMATRIX& proj, const XMFLOAT3& eyePt)
+void ParticleRenderer::UpdateFrame(CXMMATRIX& view, CXMMATRIX& proj, const XMFLOAT3& eyePt)
 {
 	// General matrices
 	const auto world = getWorldMatrix();
@@ -80,14 +80,14 @@ void ParticleSys::UpdateFrame(CXMMATRIX& view, CXMMATRIX& proj, const XMFLOAT3& 
 	m_cbPerObject.EyePt = eyePt;
 }
 
-void ParticleSys::Render(const CommandList& commandList, ResourceBase& lightMap,
+void ParticleRenderer::Render(const CommandList& commandList, ResourceBase& lightMap,
 	const DescriptorTable& srvTable, const Descriptor& rtv, const Descriptor& dsv)
 {
 	weightBlend(commandList, lightMap, srvTable, dsv);
 	resolveOIT(commandList, rtv);
 }
 
-void ParticleSys::ShowParticles(const CommandList& commandList, ResourceBase& lightMap,
+void ParticleRenderer::ShowParticles(const CommandList& commandList, ResourceBase& lightMap,
 	const DescriptorTable& srvTable)
 {
 	// Set barriers
@@ -111,7 +111,7 @@ void ParticleSys::ShowParticles(const CommandList& commandList, ResourceBase& li
 	commandList.Draw(4, m_numParticles, 0, 0);
 }
 
-bool ParticleSys::createPipelineLayouts()
+bool ParticleRenderer::createPipelineLayouts()
 {
 	// Generate particles
 	{
@@ -165,7 +165,7 @@ bool ParticleSys::createPipelineLayouts()
 	return true;
 }
 
-bool ParticleSys::createPipelines(Format rtFormat, Format dsFormat)
+bool ParticleRenderer::createPipelines(Format rtFormat, Format dsFormat)
 {
 	auto vsIndex = 0u;
 	auto psIndex = 0u;
@@ -235,7 +235,7 @@ bool ParticleSys::createPipelines(Format rtFormat, Format dsFormat)
 	return true;
 }
 
-bool ParticleSys::createDescriptorTables()
+bool ParticleRenderer::createDescriptorTables()
 {
 	// Create UAV table
 	{
@@ -275,7 +275,7 @@ bool ParticleSys::createDescriptorTables()
 	return true;
 }
 
-void ParticleSys::weightBlend(const CommandList& commandList, ResourceBase& lightMap,
+void ParticleRenderer::weightBlend(const CommandList& commandList, ResourceBase& lightMap,
 	const DescriptorTable& srvTable, const Descriptor& dsv)
 {
 	// Set barriers
@@ -311,7 +311,7 @@ void ParticleSys::weightBlend(const CommandList& commandList, ResourceBase& ligh
 	commandList.Draw(4, m_numParticles, 0, 0);
 }
 
-void ParticleSys::resolveOIT(const CommandList& commandList, const Descriptor& rtv)
+void ParticleRenderer::resolveOIT(const CommandList& commandList, const Descriptor& rtv)
 {
 	// Set barriers
 	ResourceBarrier barriers[2];
@@ -335,7 +335,7 @@ void ParticleSys::resolveOIT(const CommandList& commandList, const Descriptor& r
 	commandList.Draw(3, 1, 0, 0);
 }
 
-XMMATRIX ParticleSys::getWorldMatrix() const
+XMMATRIX ParticleRenderer::getWorldMatrix() const
 {
 	return XMMatrixScaling(10.0f, 10.0f, 10.0f);
 }

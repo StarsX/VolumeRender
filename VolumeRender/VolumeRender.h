@@ -13,7 +13,7 @@
 
 #include "StepTimer.h"
 #include "RayCaster.h"
-#include "ParticleSys.h"
+#include "ParticleRenderer.h"
 
 using namespace DirectX;
 
@@ -58,7 +58,7 @@ private:
 
 	// App resources.
 	std::unique_ptr<RayCaster> m_rayCaster;
-	std::unique_ptr<ParticleSys> m_particleSys;
+	std::unique_ptr<ParticleRenderer> m_particleRenderer;
 	XUSG::DepthStencil		m_depth;
 	XMFLOAT4X4	m_proj;
 	XMFLOAT4X4	m_view;

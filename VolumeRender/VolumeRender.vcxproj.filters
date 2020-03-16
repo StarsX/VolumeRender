@@ -111,7 +111,7 @@
     <ClInclude Include="Content\RayCaster.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Content\ParticleSys.h">
+    <ClInclude Include="Content\ParticleRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -161,7 +161,7 @@
     <ClCompile Include="Content\RayCaster.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Content\ParticleSys.cpp">
+    <ClCompile Include="Content\ParticleRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
