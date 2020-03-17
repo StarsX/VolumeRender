@@ -25,6 +25,15 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
 	float3 pos = (DTid + 0.5) / gridSize * 2.0 - 1.0;
 	pos.y = -pos.y;
+
+	float3 tex = pos * min16float3(0.5, -0.5, 0.5) + 0.5;
+	min16float density = GetSample(tex).w;
+	if (density < ZERO_THRESHOLD)
+	{
+		g_rwLightMap[DTid] = 0.0;
+		return;
+	}
+
 #ifdef _POINT_LIGHT_
 	const float3 step = normalize(g_localSpaceLightPt - pos) * g_stepScale;
 #else
@@ -37,10 +46,10 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	for (uint i = 0; i < NUM_LIGHT_SAMPLES; ++i)
 	{
 		if (any(abs(pos) > 1.0)) break;
-		const float3 tex = pos * min16float3(0.5, -0.5, 0.5) + 0.5;
+		tex = pos * min16float3(0.5, -0.5, 0.5) + 0.5;
 
 		// Get a sample along light ray
-		const min16float density = GetSample(tex).w;
+		density = GetSample(tex).w;
 
 		// Attenuate ray-throughput along light direction
 		shadow *= 1.0 - GetOpacity(density, g_stepScale);
