@@ -193,7 +193,7 @@ bool ParticleRenderer::createPipelines(Format rtFormat, Format dsFormat)
 		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
 		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state.DSSetState(Graphics::DEPTH_READ_LESS, m_graphicsPipelineCache);
-		state.OMSetBlendState(Graphics::WEIGHTED, m_graphicsPipelineCache);
+		state.OMSetBlendState(Graphics::WEIGHTED_PER_RT, m_graphicsPipelineCache);
 		state.OMSetNumRenderTargets(2);
 		state.OMSetRTVFormat(0, Format::R16G16B16A16_FLOAT);
 		state.OMSetRTVFormat(1, Format::R8_UNORM);
