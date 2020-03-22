@@ -286,6 +286,7 @@ COPY /Y "$(OutDir)*.exe" "$(ProjectDir)..\Bin\"</Command>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Content\Shaders\Random.hlsli" />
     <None Include="Content\Shaders\RayCast.hlsli" />
     <None Include="Content\Shaders\RayMarch.hlsli" />
     <None Include="Content\Shaders\WeightedAlpha.hlsli" />

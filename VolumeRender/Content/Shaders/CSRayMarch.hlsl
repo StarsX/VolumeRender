@@ -176,7 +176,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
 				lightPos += lightStep;
 			}
 
-			const min16float3 light = g_light * shadow + g_ambient;
+			const min16float3 lightColor = min16float3(g_lightColor.xyz * g_lightColor.w);
+			const min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
+			const min16float3 light = lightColor * shadow + ambient;
 #endif
 
 			// Accumulate color

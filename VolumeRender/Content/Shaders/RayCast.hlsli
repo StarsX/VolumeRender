@@ -7,10 +7,12 @@
 //--------------------------------------------------------------------------------------
 cbuffer cbPerObject
 {
-	matrix	g_worldViewProj;
-	matrix	g_worldViewProjI;
-	float3	g_localSpaceEyePt;
-	float3	g_localSpaceLightPt;
+	matrix g_worldViewProj;
+	matrix g_worldViewProjI;
+	float3 g_localSpaceEyePt;
+	float3 g_localSpaceLightPt;
+	float4 g_lightColor;
+	float4 g_ambient;
 };
 
 //--------------------------------------------------------------------------------------

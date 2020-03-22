@@ -14,10 +14,15 @@ struct CBPerObject
 	XMMATRIX WorldViewProjI;
 	XMVECTOR LocalSpaceEyePt;
 	XMVECTOR LocalSpaceLightPt;
+	XMFLOAT4 LightColor;
+	XMFLOAT4 Ambient;
 };
 
 RayCaster::RayCaster(const Device& device) :
-	m_device(device)
+	m_device(device),
+	m_lightPt(75.0f, 75.0f, -75.0f),
+	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
+	m_ambient(0.0f, 0.3f, 1.0f, 0.3f)
 {
 	m_graphicsPipelineCache.SetDevice(device);
 	m_computePipelineCache.SetDevice(device);
@@ -81,6 +86,17 @@ void RayCaster::InitGridData(const CommandList& commandList)
 	commandList.Dispatch(DIV_UP(m_gridSize.x, 4), DIV_UP(m_gridSize.y, 4), DIV_UP(m_gridSize.z, 4));
 }
 
+void RayCaster::SetLight(const XMFLOAT3& pos, const XMFLOAT3& color, float intensity)
+{
+	m_lightPt = pos;
+	m_lightColor = XMFLOAT4(color.x, color.y, color.z, intensity);
+}
+
+void RayCaster::SetAmbient(const XMFLOAT3& color, float intensity)
+{
+	m_ambient = XMFLOAT4(color.x, color.y, color.z, intensity);
+}
+
 void RayCaster::UpdateFrame(uint32_t frameIndex, CXMMATRIX viewProj, CXMVECTOR eyePt)
 {
 	// General matrices
@@ -94,7 +110,9 @@ void RayCaster::UpdateFrame(uint32_t frameIndex, CXMMATRIX viewProj, CXMVECTOR e
 	pCbPerObject->WorldViewProj = XMMatrixTranspose(worldViewProj);
 	pCbPerObject->WorldViewProjI = XMMatrixTranspose(worldViewProjI);
 	pCbPerObject->LocalSpaceEyePt = XMVector3TransformCoord(eyePt, worldI);
-	pCbPerObject->LocalSpaceLightPt = XMVector3TransformCoord(XMVectorSet(75.0f, 75.0f, -75.0f, 0.0f), worldI);
+	pCbPerObject->LocalSpaceLightPt = XMVector3TransformCoord(XMLoadFloat3(&m_lightPt), worldI);
+	pCbPerObject->LightColor = m_lightColor;
+	pCbPerObject->Ambient = m_ambient;
 }
 
 void RayCaster::Render(const CommandList& commandList, uint32_t frameIndex, bool splitLightPass)

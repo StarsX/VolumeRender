@@ -58,5 +58,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		pos += step;
 	}
 
-	g_rwLightMap[DTid] = g_light * shadow + g_ambient;
+	const min16float3 lightColor = min16float3(g_lightColor.xyz * g_lightColor.w);
+	const min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
+	g_rwLightMap[DTid] = lightColor * shadow + ambient;
 }

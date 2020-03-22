@@ -187,6 +187,9 @@
     <None Include="Content\Shaders\WeightedAlpha.hlsli">
       <Filter>Shaders\ParticleSys</Filter>
     </None>
+    <None Include="Content\Shaders\Random.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Content\Shaders\CSInitGridData.hlsl">

@@ -19,6 +19,8 @@ public:
 		const DirectX::XMUINT3& gridSize);
 
 	void InitGridData(const XUSG::CommandList& commandList);
+	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
+	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMMATRIX viewProj, DirectX::CXMVECTOR eyePt);
 	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, bool splitLightPass = true);
 	void RayMarchL(const XUSG::CommandList& commandList, uint32_t frameIndex);
@@ -85,4 +87,8 @@ protected:
 	DirectX::XMUINT3		m_gridSize;
 	DirectX::XMUINT3		m_lightGridSize;
 	DirectX::XMUINT2		m_viewport;
+
+	DirectX::XMFLOAT3		m_lightPt;
+	DirectX::XMFLOAT4		m_lightColor;
+	DirectX::XMFLOAT4		m_ambient;
 };
