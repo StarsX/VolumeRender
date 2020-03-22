@@ -139,7 +139,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	for (uint i = 0; i < NUM_SAMPLES; ++i)
 	{
 		if (any(abs(pos) > 1.0)) break;
-		float3 tex = pos * float3(0.5, -0.5, 0.5) + 0.5;
+		float3 tex = pos * 0.5 + 0.5;
 
 		// Get a sample
 		min16float4 color = GetSample(tex);
@@ -155,7 +155,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 			// Sample light
 			float3 lightPos = pos + lightStep;
 #ifdef _LIGHT_PASS_
-			tex = lightPos * float3(0.5, -0.5, 0.5) + 0.5;
+			tex = lightPos * 0.5 + 0.5;
 			const float3 light = g_txLightMap.SampleLevel(g_smpLinear, tex, 0.0);
 #else
 			min16float shadow = 1.0;	// Transmittance along light ray

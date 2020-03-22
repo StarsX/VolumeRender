@@ -37,8 +37,7 @@ PSOut main(PSIn input)
 {
 	PSOut output;
 
-	const float2 disp = input.Domain * 2.0 - 1.0;
-	const float r_sq = dot(disp, disp);
+	const float r_sq = dot(input.Domain, input.Domain);
 	a = 1.0 - r_sq;
 	clip(a);
 

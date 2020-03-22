@@ -27,8 +27,7 @@ SamplerState g_smpLinear;
 
 float4 main(PSIn input) : SV_TARGET
 {
-	const float2 disp = input.Domain * 2.0 - 1.0;
-	const float r_sq = dot(disp, disp);
+	const float r_sq = dot(input.Domain, input.Domain);
 	float a = 1.0 - r_sq;
 	clip(a);
 

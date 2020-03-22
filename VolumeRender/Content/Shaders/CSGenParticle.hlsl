@@ -67,11 +67,10 @@ void main(uint DTid : SV_DispatchThreadID)
 		particle.Color = g_txGrid.SampleLevel(g_smpLinear, tex, 0.0);
 		//if (rand(seed, 10000) / 9999.0 <= particle.Color.w) break;
 		//if (particle.Color.w > 0.25) break;
-		if (max(rand(seed, 10000) / 9999.0, 0.25) <= particle.Color.w) break;
+		if (max(rand(seed, 10000) / 9999.0, 0.125) <= particle.Color.w) break;
 	}
 
 	particle.Pos = float4(tex * 2.0 - 1.0, 1.0);
-	particle.Pos.y = particle.Pos.y;
 
 	g_rwParticles[DTid] = particle;
 }

@@ -24,9 +24,8 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	g_rwLightMap.GetDimensions(gridSize.x, gridSize.y, gridSize.z);
 
 	float3 pos = (DTid + 0.5) / gridSize * 2.0 - 1.0;
-	pos.y = -pos.y;
 
-	float3 tex = pos * min16float3(0.5, -0.5, 0.5) + 0.5;
+	float3 tex = pos * 0.5 + 0.5;
 	min16float density = GetSample(tex).w;
 	if (density < ZERO_THRESHOLD)
 	{
@@ -46,7 +45,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	for (uint i = 0; i < NUM_LIGHT_SAMPLES; ++i)
 	{
 		if (any(abs(pos) > 1.0)) break;
-		tex = pos * min16float3(0.5, -0.5, 0.5) + 0.5;
+		tex = pos * 0.5 + 0.5;
 
 		// Get a sample along light ray
 		density = GetSample(tex).w;

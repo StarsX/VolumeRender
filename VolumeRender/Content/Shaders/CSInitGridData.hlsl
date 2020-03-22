@@ -47,5 +47,9 @@ void main( uint3 DTid : SV_DispatchThreadID )
 	a *= a;
 	a = saturate(a * a * 2.0);
 
-	g_rwGrid[DTid] = float4(0.5, 0.8, 1.0, a);
+	const float3 colorU = float3(1.0, 0.6, 0.0);
+	const float3 colorD = float3(0.5, 0.8, 1.0);
+	const float3 color = lerp(colorD, colorU, saturate(pos.y * 0.5 + 0.2));
+
+	g_rwGrid[DTid] = float4(color, a);
 }

@@ -48,10 +48,9 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 	output.Pos = mul(particle.Pos, g_worldView);
 
 	// Caculate position offset
-	output.Domain = float2(vid & 1, vid >> 1);
-	float2 offset = output.Domain * 2.0 - 1.0;
-	offset.y = -offset.y;
-	offset *= g_particleRadius;
+	output.Domain = float2(vid >> 1, vid & 1);
+	output.Domain = output.Domain * 2.0 - 1.0;
+	const float2 offset = output.Domain * g_particleRadius;
 
 	// Caculate vertex position
 	output.Pos.xy += offset;
@@ -64,7 +63,6 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 	// Output data
 	output.Pos = mul(output.Pos, g_proj);
 	output.Tex.xyz = particle.Pos.xyz * 0.5 + 0.5;
-	output.Tex.y = 1.0 - output.Tex.y;
 	output.Color = particle.Color.xyz;
 
 	return output;
