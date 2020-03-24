@@ -78,6 +78,9 @@ void ParticleRenderer::UpdateFrame(CXMMATRIX& view, CXMMATRIX& proj, const XMFLO
 	XMStoreFloat4x4(&m_cbPerObject.WorldViewI, XMMatrixTranspose(worldViewI));
 	XMStoreFloat4x4(&m_cbPerObject.Proj, XMMatrixTranspose(proj));
 	m_cbPerObject.EyePt = eyePt;
+
+	const auto numParticlePerDim = powf(static_cast<float>(m_numParticles), 1.0f / 3.0f);
+	m_cbPerObject.ParticleRadius = XM_PI / numParticlePerDim * XMVectorGetX(world.r[0]);
 }
 
 void ParticleRenderer::Render(const CommandList& commandList, ResourceBase& lightMap,

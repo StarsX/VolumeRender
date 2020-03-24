@@ -19,6 +19,7 @@ public:
 		const DirectX::XMUINT3& gridSize);
 
 	void InitGridData(const XUSG::CommandList& commandList);
+	void SetWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMMATRIX viewProj, DirectX::CXMVECTOR eyePt);
@@ -59,8 +60,6 @@ protected:
 	void rayMarchV(const XUSG::CommandList& commandList, uint32_t frameIndex);
 	void rayCast(const XUSG::CommandList& commandList, uint32_t frameIndex);
 
-	DirectX::XMMATRIX getWorldMatrix() const;
-
 	XUSG::Device m_device;
 
 	XUSG::ShaderPool				m_shaderPool;
@@ -91,4 +90,5 @@ protected:
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;
 	DirectX::XMFLOAT4		m_ambient;
+	DirectX::XMFLOAT4X4		m_world;
 };

@@ -28,9 +28,8 @@ cbuffer cbPerObject
 	matrix g_worldViewI;
 	matrix g_proj;
 	float3 g_eyePt;
+	float g_particleRadius;
 };
-
-static const float g_particleRadius = 1.4;
 
 //--------------------------------------------------------------------------------------
 // Buffer

@@ -27,6 +27,8 @@ RayCaster::RayCaster(const Device& device) :
 	m_graphicsPipelineCache.SetDevice(device);
 	m_computePipelineCache.SetDevice(device);
 	m_pipelineLayoutCache.SetDevice(device);
+
+	XMStoreFloat4x4(&m_world, XMMatrixScaling(10.0f, 10.0f, 10.0f));
 }
 
 RayCaster::~RayCaster()
@@ -86,6 +88,14 @@ void RayCaster::InitGridData(const CommandList& commandList)
 	commandList.Dispatch(DIV_UP(m_gridSize.x, 4), DIV_UP(m_gridSize.y, 4), DIV_UP(m_gridSize.z, 4));
 }
 
+void RayCaster::SetWorld(float size, const DirectX::XMFLOAT3& pos)
+{
+	size *= 0.5f;
+	auto world = XMMatrixScaling(size, size, size);
+	world = world * XMMatrixTranslation(pos.x, pos.y, pos.z);
+	XMStoreFloat4x4(&m_world, world);
+}
+
 void RayCaster::SetLight(const XMFLOAT3& pos, const XMFLOAT3& color, float intensity)
 {
 	m_lightPt = pos;
@@ -100,7 +110,7 @@ void RayCaster::SetAmbient(const XMFLOAT3& color, float intensity)
 void RayCaster::UpdateFrame(uint32_t frameIndex, CXMMATRIX viewProj, CXMVECTOR eyePt)
 {
 	// General matrices
-	const auto world = getWorldMatrix();
+	const auto world = XMLoadFloat4x4(&m_world);
 	const auto worldViewProj = world * viewProj;
 	const auto worldI = XMMatrixInverse(nullptr, world);
 	const auto worldViewProjI = XMMatrixInverse(nullptr, worldViewProj);
@@ -110,7 +120,7 @@ void RayCaster::UpdateFrame(uint32_t frameIndex, CXMMATRIX viewProj, CXMVECTOR e
 	pCbPerObject->WorldViewProj = XMMatrixTranspose(worldViewProj);
 	pCbPerObject->WorldViewProjI = XMMatrixTranspose(worldViewProjI);
 	pCbPerObject->LocalSpaceEyePt = XMVector3TransformCoord(eyePt, worldI);
-	pCbPerObject->LocalSpaceLightPt = XMVector3TransformCoord(XMLoadFloat3(&m_lightPt), worldI);
+	pCbPerObject->LocalSpaceLightPt = XMVector3TransformNormal(XMLoadFloat3(&m_lightPt), worldI);
 	pCbPerObject->LightColor = m_lightColor;
 	pCbPerObject->Ambient = m_ambient;
 }
@@ -430,9 +440,4 @@ void RayCaster::rayCast(const CommandList& commandList, uint32_t frameIndex)
 	commandList.SetGraphicsDescriptorTable(2, m_samplerTable);
 
 	commandList.Draw(3, 1, 0, 0);
-}
-
-XMMATRIX RayCaster::getWorldMatrix() const
-{
-	return XMMatrixScaling(10.0f, 10.0f, 10.0f);
 }
