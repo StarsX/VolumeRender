@@ -19,10 +19,11 @@ public:
 		const DirectX::XMUINT3& gridSize);
 
 	void InitGridData(const XUSG::CommandList& commandList);
-	void SetWorld(float size, const DirectX::XMFLOAT3& pos);
+	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
+	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
-	void UpdateFrame(uint32_t frameIndex, DirectX::CXMMATRIX viewProj, DirectX::CXMVECTOR eyePt);
+	void UpdateFrame(uint32_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
 	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, bool splitLightPass = true);
 	void RayMarchL(const XUSG::CommandList& commandList, uint32_t frameIndex);
 
@@ -90,5 +91,6 @@ protected:
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;
 	DirectX::XMFLOAT4		m_ambient;
-	DirectX::XMFLOAT4X4		m_world;
+	DirectX::XMFLOAT4X4		m_volumeWorld;
+	DirectX::XMFLOAT4X4		m_lightMapWorld;
 };

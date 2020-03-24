@@ -114,20 +114,24 @@ float3 GetLocalPos(uint3 pos, float3 localSpaceEyePt, RWTexture2D<float4> rwHalv
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	if (g_localSpaceEyePt[DTid.z] == 0.0) return;
+	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI).xyz;
+	if (localSpaceEyePt[DTid.z] == 0.0) return;
 
-	float3 pos = GetLocalPos(DTid, g_localSpaceEyePt, g_rwHalvedCube);
-	float3 rayDir = normalize(pos - g_localSpaceEyePt);
+	float3 pos = GetLocalPos(DTid, localSpaceEyePt, g_rwHalvedCube);
+	float3 rayDir = normalize(pos - localSpaceEyePt);
 
-	if (all(abs(g_localSpaceEyePt) <= 1.0))
+	if (all(abs(localSpaceEyePt) <= 1.0))
 	{
-		pos = g_localSpaceEyePt;
+		pos = localSpaceEyePt;
 		rayDir = -rayDir;
 	}
 
 	const float3 step = rayDir * g_stepScale;
-#ifndef _POINT_LIGHT_
-	const float3 lightStep = normalize(g_localSpaceLightPt) * g_lightStepScale;
+#ifdef _POINT_LIGHT_
+	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;
+#else
+	const float3 localSpaceLightPt = mul(g_lightPos.xyz, (float3x3)g_worldI);
+	const float3 lightStep = normalize(localSpaceLightPt) * g_lightStepScale;
 #endif
 
 	// Transmittance
@@ -149,7 +153,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		{
 			// Point light direction in texture space
 #ifdef _POINT_LIGHT_
-			const float3 lightStep = normalize(g_localSpaceLightPt - pos) * g_lightStepScale;
+			const float3 lightStep = normalize(localSpaceLightPt - pos) * g_lightStepScale;
 #endif
 
 			// Sample light

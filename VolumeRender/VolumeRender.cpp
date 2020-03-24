@@ -221,11 +221,11 @@ void VolumeRender::OnUpdate()
 	time = totalTime - pauseTime;
 
 	// View
-	const auto eyePt = XMLoadFloat3(&m_eyePt);
+	//const auto eyePt = XMLoadFloat3(&m_eyePt);
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
-	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, eyePt);
+	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_particleRenderer->UpdateFrame(view, proj, m_eyePt);
 }
 

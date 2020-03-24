@@ -10,10 +10,11 @@ using namespace XUSG;
 
 struct CBPerObject
 {
-	XMMATRIX WorldViewProj;
 	XMMATRIX WorldViewProjI;
-	XMVECTOR LocalSpaceEyePt;
-	XMVECTOR LocalSpaceLightPt;
+	XMMATRIX WorldI;
+	XMMATRIX LightMapWorld;
+	XMFLOAT4 EyePos;
+	XMFLOAT4 LightPos;
 	XMFLOAT4 LightColor;
 	XMFLOAT4 Ambient;
 };
@@ -28,7 +29,8 @@ RayCaster::RayCaster(const Device& device) :
 	m_computePipelineCache.SetDevice(device);
 	m_pipelineLayoutCache.SetDevice(device);
 
-	XMStoreFloat4x4(&m_world, XMMatrixScaling(10.0f, 10.0f, 10.0f));
+	XMStoreFloat4x4(&m_volumeWorld, XMMatrixScaling(10.0f, 10.0f, 10.0f));
+	m_lightMapWorld = m_volumeWorld;
 }
 
 RayCaster::~RayCaster()
@@ -88,12 +90,20 @@ void RayCaster::InitGridData(const CommandList& commandList)
 	commandList.Dispatch(DIV_UP(m_gridSize.x, 4), DIV_UP(m_gridSize.y, 4), DIV_UP(m_gridSize.z, 4));
 }
 
-void RayCaster::SetWorld(float size, const DirectX::XMFLOAT3& pos)
+void RayCaster::SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos)
 {
 	size *= 0.5f;
 	auto world = XMMatrixScaling(size, size, size);
 	world = world * XMMatrixTranslation(pos.x, pos.y, pos.z);
-	XMStoreFloat4x4(&m_world, world);
+	XMStoreFloat4x4(&m_volumeWorld, world);
+}
+
+void RayCaster::SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos)
+{
+	size *= 0.5f;
+	auto world = XMMatrixScaling(size, size, size);
+	world = world * XMMatrixTranslation(pos.x, pos.y, pos.z);
+	XMStoreFloat4x4(&m_lightMapWorld, world);
 }
 
 void RayCaster::SetLight(const XMFLOAT3& pos, const XMFLOAT3& color, float intensity)
@@ -107,20 +117,21 @@ void RayCaster::SetAmbient(const XMFLOAT3& color, float intensity)
 	m_ambient = XMFLOAT4(color.x, color.y, color.z, intensity);
 }
 
-void RayCaster::UpdateFrame(uint32_t frameIndex, CXMMATRIX viewProj, CXMVECTOR eyePt)
+void RayCaster::UpdateFrame(uint32_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
 {
 	// General matrices
-	const auto world = XMLoadFloat4x4(&m_world);
+	const auto world = XMLoadFloat4x4(&m_volumeWorld);
 	const auto worldViewProj = world * viewProj;
-	const auto worldI = XMMatrixInverse(nullptr, world);
-	const auto worldViewProjI = XMMatrixInverse(nullptr, worldViewProj);
 
 	// Screen space matrices
 	const auto pCbPerObject = reinterpret_cast<CBPerObject*>(m_cbPerObject.Map(frameIndex));
-	pCbPerObject->WorldViewProj = XMMatrixTranspose(worldViewProj);
-	pCbPerObject->WorldViewProjI = XMMatrixTranspose(worldViewProjI);
-	pCbPerObject->LocalSpaceEyePt = XMVector3TransformCoord(eyePt, worldI);
-	pCbPerObject->LocalSpaceLightPt = XMVector3TransformNormal(XMLoadFloat3(&m_lightPt), worldI);
+	pCbPerObject->WorldViewProjI = XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj));
+	pCbPerObject->WorldI = XMMatrixTranspose(XMMatrixInverse(nullptr, world));
+
+	// Lighting
+	pCbPerObject->LightMapWorld = XMMatrixTranspose(XMLoadFloat4x4(&m_lightMapWorld));
+	pCbPerObject->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
+	pCbPerObject->LightPos = XMFLOAT4(m_lightPt.x, m_lightPt.y, m_lightPt.z, 1.0f);
 	pCbPerObject->LightColor = m_lightColor;
 	pCbPerObject->Ambient = m_ambient;
 }

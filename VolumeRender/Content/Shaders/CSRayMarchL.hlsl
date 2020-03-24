@@ -23,9 +23,14 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	float3 gridSize;
 	g_rwLightMap.GetDimensions(gridSize.x, gridSize.y, gridSize.z);
 
-	float3 pos = (DTid + 0.5) / gridSize * 2.0 - 1.0;
+	float4 pos;
+	pos.xyz = (DTid + 0.5) / gridSize * 2.0 - 1.0;
+	pos.w = 1.0;
 
-	float3 tex = pos * 0.5 + 0.5;
+	pos = mul(pos, g_lightMapWorld);	// Light-map space to world space
+	pos = mul(pos, g_worldI);			// World space to volume space
+
+	float3 tex = pos.xyz * 0.5 + 0.5;
 	min16float density = GetSample(tex).w;
 	if (density < ZERO_THRESHOLD)
 	{
@@ -34,9 +39,11 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	}
 
 #ifdef _POINT_LIGHT_
-	const float3 step = normalize(g_localSpaceLightPt - pos) * g_stepScale;
+	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;
+	const float3 step = normalize(localSpaceLightPt - pos) * g_stepScale;
 #else
-	const float3 step = normalize(g_localSpaceLightPt) * g_stepScale;
+	const float3 localSpaceLightPt = mul(g_lightPos.xyz, (float3x3)g_worldI);
+	const float3 step = normalize(localSpaceLightPt) * g_stepScale;
 #endif
 
 	// Transmittance
@@ -45,7 +52,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	for (uint i = 0; i < NUM_LIGHT_SAMPLES; ++i)
 	{
 		if (any(abs(pos) > 1.0)) break;
-		tex = pos * 0.5 + 0.5;
+		tex = pos.xyz * 0.5 + 0.5;
 
 		// Get a sample along light ray
 		density = GetSample(tex).w;
@@ -55,7 +62,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		if (shadow < ZERO_THRESHOLD) break;
 
 		// Update position along light ray
-		pos += step;
+		pos.xyz += step;
 	}
 
 	const min16float3 lightColor = min16float3(g_lightColor.xyz * g_lightColor.w);

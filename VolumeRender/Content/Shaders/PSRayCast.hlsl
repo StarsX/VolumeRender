@@ -119,8 +119,9 @@ float4 SampleSlice(float2 tex, uint slice, Texture2D<float4> txHalvedCube[3])
 min16float4 main(PSIn input) : SV_TARGET
 {
 	float3 pos = TexcoordToLocalPos(input.Tex);	// The point on the near plane
-	const float3 rayDir = normalize(pos - g_localSpaceEyePt);
-	pos = g_localSpaceEyePt;
+	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI).xyz;
+	const float3 rayDir = normalize(pos - localSpaceEyePt);
+	pos = localSpaceEyePt;
 
 	const uint hitSlice = ComputeStartPoint(pos, rayDir);
 	if (hitSlice > 2) discard;
