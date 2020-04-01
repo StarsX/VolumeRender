@@ -3,6 +3,7 @@
 //--------------------------------------------------------------------------------------
 
 #include "RayCaster.h"
+#include "Advanced/XUSGDDSLoader.h"
 
 using namespace std;
 using namespace DirectX;
@@ -69,6 +70,46 @@ bool RayCaster::Init(const CommandList& commandList, uint32_t width, uint32_t he
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(rtFormat, dsFormat), false);
 	N_RETURN(createDescriptorTables(), false);
+
+	return true;
+}
+
+bool RayCaster::LoadGridData(const CommandList& commandList, const wchar_t* fileName, vector<Resource>& uploaders)
+{
+	// Load input image
+	{
+		DDS::Loader textureLoader;
+		DDS::AlphaMode alphaMode;
+
+		uploaders.push_back(nullptr);
+		N_RETURN(textureLoader.CreateTextureFromFile(m_device, commandList, fileName,
+			8192, false, m_fileSrc, uploaders.back(), &alphaMode), false);
+	}
+
+	{
+		Util::DescriptorTable srvTable;
+		srvTable.SetDescriptors(0, 1, &m_fileSrc->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_FILE_SRC], srvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	}
+
+	const DescriptorPool descriptorPools[] =
+	{
+		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
+		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
+	};
+	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
+
+	// Set pipeline state
+	commandList.SetComputePipelineLayout(m_pipelineLayouts[LOAD_GRID_DATA]);
+	commandList.SetPipelineState(m_pipelines[LOAD_GRID_DATA]);
+
+	// Set descriptor tables
+	commandList.SetComputeDescriptorTable(0, m_srvTables[SRV_TABLE_FILE_SRC]);
+	commandList.SetComputeDescriptorTable(1, m_uavTable);
+	commandList.SetComputeDescriptorTable(2, m_samplerTable);
+
+	// Dispatch grid
+	commandList.Dispatch(DIV_UP(m_gridSize.x, 4), DIV_UP(m_gridSize.y, 4), DIV_UP(m_gridSize.z, 4));
 
 	return true;
 }
@@ -190,6 +231,16 @@ ResourceBase& RayCaster::GetLightMap()
 
 bool RayCaster::createPipelineLayouts()
 {
+	// Load grid data
+	{
+		Util::PipelineLayout pipelineLayout;
+		pipelineLayout.SetRange(0, DescriptorType::SRV, 1, 0);
+		pipelineLayout.SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		pipelineLayout.SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		X_RETURN(m_pipelineLayouts[LOAD_GRID_DATA], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+			PipelineLayoutFlag::NONE, L"LoadGridDataLayout"), false);
+	}
+
 	// Init grid data
 	{
 		Util::PipelineLayout pipelineLayout;
@@ -253,6 +304,16 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 	auto psIndex = 0u;
 	auto csIndex = 0u;
 
+	// Load grid data
+	{
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, csIndex, L"CSR32FToRGBA16F.cso"), false);
+
+		Compute::State state;
+		state.SetPipelineLayout(m_pipelineLayouts[LOAD_GRID_DATA]);
+		state.SetShader(m_shaderPool.GetShader(Shader::Stage::CS, csIndex++));
+		X_RETURN(m_pipelines[LOAD_GRID_DATA], state.GetPipeline(m_computePipelineCache, L"InitGridData"), false);
+	}
+
 	// Init grid data
 	{
 		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, csIndex, L"CSInitGridData.cso"), false);
@@ -315,6 +376,8 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 
 bool RayCaster::createDescriptorTables()
 {
+	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 28);
+
 	// Create CBV tables
 	for (auto i = 0u; i < FrameCount; ++i)
 	{

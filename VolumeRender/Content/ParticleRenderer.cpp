@@ -32,10 +32,11 @@ bool ParticleRenderer::Init(const CommandList& commandList, uint32_t width, uint
 	N_RETURN(m_particles.Create(m_device, numParticles, sizeof(float[8]), ResourceFlag::ALLOW_UNORDERED_ACCESS,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, L"Particles"), false);
 
+	const float clearTransm[4] = { 1.0f };
 	N_RETURN(m_rtOITs[0].Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::NONE, 1, 1, nullptr, false, L"OITColor"), false);
 	N_RETURN(m_rtOITs[1].Create(m_device, width, height, Format::R8_UNORM, 1,
-		ResourceFlag::NONE, 1, 1, nullptr, false, L"OITTransmittance"), false);
+		ResourceFlag::NONE, 1, 1, clearTransm, false, L"OITTransmittance"), false);
 
 	// Create pipelines
 	N_RETURN(createPipelineLayouts(), false);
@@ -96,7 +97,7 @@ void ParticleRenderer::ShowParticles(const CommandList& commandList, ResourceBas
 	// Set barriers
 	ResourceBarrier barriers[2];
 	auto numBarriers = m_particles.SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
-	numBarriers = lightMap.SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = lightMap.SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	commandList.Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -200,6 +201,7 @@ bool ParticleRenderer::createPipelines(Format rtFormat, Format dsFormat)
 		state.OMSetNumRenderTargets(2);
 		state.OMSetRTVFormat(0, Format::R16G16B16A16_FLOAT);
 		state.OMSetRTVFormat(1, Format::R8_UNORM);
+		state.OMSetDSVFormat(dsFormat);
 		X_RETURN(m_pipelines[WEIGHT_BLEND], state.GetPipeline(m_graphicsPipelineCache, L"WeightBlending"), false);
 	}
 
@@ -286,7 +288,7 @@ void ParticleRenderer::weightBlend(const CommandList& commandList, ResourceBase&
 	auto numBarriers = m_rtOITs[0].SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = m_rtOITs[1].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	numBarriers = m_particles.SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	numBarriers = lightMap.SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = lightMap.SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	commandList.Barrier(numBarriers, barriers);
 
 	// Set render targets

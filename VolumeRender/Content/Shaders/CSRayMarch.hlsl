@@ -167,7 +167,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 			for (uint j = 0; j < NUM_LIGHT_SAMPLES; ++j)
 			{
 				if (any(abs(lightPos) > 1.0)) break;
-				tex = lightPos * min16float3(0.5, -0.5, 0.5) + 0.5;
+				tex = lightPos * 0.5 + 0.5;
 
 				// Get a sample along light ray
 				const min16float density = GetSample(tex).w;

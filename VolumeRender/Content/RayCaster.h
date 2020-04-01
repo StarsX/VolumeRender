@@ -18,6 +18,7 @@ public:
 		std::vector<XUSG::Resource>& uploaders, XUSG::Format rtFormat, XUSG::Format dsFormat,
 		const DirectX::XMUINT3& gridSize);
 
+	bool LoadGridData(const XUSG::CommandList& commandList, const wchar_t* fileName, std::vector<XUSG::Resource>& uploaders);
 	void InitGridData(const XUSG::CommandList& commandList);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
@@ -36,6 +37,7 @@ public:
 protected:
 	enum PipelineIndex : uint8_t
 	{
+		LOAD_GRID_DATA,
 		INIT_GRID_DATA,
 		RAY_MARCH,
 		RAY_MARCH_L,
@@ -47,6 +49,7 @@ protected:
 
 	enum SrvTable : uint8_t
 	{
+		SRV_TABLE_FILE_SRC,
 		SRV_TABLE_LIGHT_MAP,
 		SRV_TABLE_HALVED_CUBE,
 
@@ -79,6 +82,7 @@ protected:
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
+	std::shared_ptr<XUSG::ResourceBase> m_fileSrc;
 	XUSG::Texture3D			m_grid;
 	XUSG::Texture2D			m_halvedCube[3];
 	XUSG::Texture3D			m_lightMap;

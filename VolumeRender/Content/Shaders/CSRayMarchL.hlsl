@@ -31,12 +31,12 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	pos = mul(pos, g_worldI);			// World space to volume space
 
 	float3 tex = pos.xyz * 0.5 + 0.5;
-	min16float density = GetSample(tex).w;
-	if (density < ZERO_THRESHOLD)
+	min16float density;// = GetSample(tex).w;
+	/*if (density < ZERO_THRESHOLD)
 	{
 		g_rwLightMap[DTid] = 0.0;
 		return;
-	}
+	}*/
 
 #ifdef _POINT_LIGHT_
 	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;

@@ -46,6 +46,15 @@
     <Filter Include="Shaders\ParticleSys">
       <UniqueIdentifier>{22f052d6-b879-4992-91ee-070a1e209bf8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="XUSG\Advanced">
+      <UniqueIdentifier>{e63d709e-f1e3-402f-aea8-146b9080366c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="XUSG\Advanced\Header Files">
+      <UniqueIdentifier>{09a8eaca-29ba-4a92-b8fd-c09bdf6f75ae}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="XUSG\Advanced\Source Files">
+      <UniqueIdentifier>{e5f4607f-cb03-4a3c-af68-0e6b24595756}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common\d3dx12.h">
@@ -114,6 +123,9 @@
     <ClInclude Include="Content\ParticleRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h">
+      <Filter>XUSG\Advanced\Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Common\DXFramework.cpp">
@@ -163,6 +175,9 @@
     </ClCompile>
     <ClCompile Include="Content\ParticleRenderer.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="XUSG\Advanced\XUSGDDSLoader.cpp">
+      <Filter>XUSG\Advanced\Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -224,6 +239,9 @@
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSResolveOIT.hlsl">
       <Filter>Shaders\ParticleSys</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\CSR32FToRGBA16F.hlsl">
+      <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>
