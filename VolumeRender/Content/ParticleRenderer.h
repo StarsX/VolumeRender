@@ -13,17 +13,15 @@ public:
 	ParticleRenderer(const XUSG::Device& device);
 	virtual ~ParticleRenderer();
 
-	bool Init(const XUSG::CommandList& commandList, uint32_t width, uint32_t height,
-		std::shared_ptr<XUSG::DescriptorTableCache> descriptorTableCache,
-		std::vector<XUSG::Resource>& uploaders, XUSG::Format rtFormat,
-		XUSG::Format dsFormat, uint32_t numParticles);
+	bool Init(uint32_t width, uint32_t height, XUSG::DescriptorTableCache::sptr descriptorTableCache,
+		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t numParticles);
 
-	void GenerateParticles(const XUSG::CommandList& commandList, const XUSG::DescriptorTable& srvTable);
+	void GenerateParticles(const XUSG::CommandList* pCommandList, const XUSG::DescriptorTable& srvTable);
 	void UpdateFrame(DirectX::CXMMATRIX& view, DirectX::CXMMATRIX& proj, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList& commandList, XUSG::ResourceBase& lightMap,
+	void Render(const XUSG::CommandList* pCommandList, XUSG::ResourceBase& lightMap,
 		const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& rtv,
 		const XUSG::Descriptor& dsv);
-	void ShowParticles(const XUSG::CommandList& commandList, XUSG::ResourceBase& lightMap,
+	void ShowParticles(const XUSG::CommandList* pCommandList, XUSG::ResourceBase& lightMap,
 		const XUSG::DescriptorTable& srvTable);
 
 protected:
@@ -65,19 +63,19 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat);
 	bool createDescriptorTables();
 
-	void weightBlend(const XUSG::CommandList& commandList, XUSG::ResourceBase& lightMap,
+	void weightBlend(const XUSG::CommandList* pCommandList, XUSG::ResourceBase& lightMap,
 		const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& dsv);
-	void resolveOIT(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv);
+	void resolveOIT(const XUSG::CommandList* pCommandList, const XUSG::Descriptor& rtv);
 
 	DirectX::XMMATRIX getWorldMatrix() const;
 
 	XUSG::Device m_device;
 
-	XUSG::ShaderPool				m_shaderPool;
-	XUSG::Graphics::PipelineCache	m_graphicsPipelineCache;
-	XUSG::Compute::PipelineCache	m_computePipelineCache;
-	XUSG::PipelineLayoutCache		m_pipelineLayoutCache;
-	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
+	XUSG::ShaderPool::uptr				m_shaderPool;
+	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
+	XUSG::Compute::PipelineCache::uptr	m_computePipelineCache;
+	XUSG::PipelineLayoutCache::uptr		m_pipelineLayoutCache;
+	XUSG::DescriptorTableCache::sptr	m_descriptorTableCache;
 
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
@@ -86,8 +84,8 @@ protected:
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
-	XUSG::StructuredBuffer	m_particles;
-	XUSG::RenderTarget		m_rtOITs[2];
+	XUSG::StructuredBuffer::uptr	m_particles;
+	XUSG::RenderTarget::uptr		m_rtOITs[2];
 
 	uint32_t				m_numParticles;
 	DirectX::XMUINT2		m_viewport;

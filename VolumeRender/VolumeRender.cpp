@@ -129,51 +129,55 @@ void VolumeRender::LoadPipeline()
 	ThrowIfFailed(swapChain.As(&m_swapChain));
 	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-	m_descriptorTableCache = make_shared<DescriptorTableCache>(m_device, L"DescriptorTableCache");
+	m_descriptorTableCache = DescriptorTableCache::MakeShared(m_device, L"DescriptorTableCache");
 
 	// Create frame resources.
 	// Create a RTV and a command allocator for each frame.
 	for (auto n = 0u; n < FrameCount; n++)
 	{
-		N_RETURN(m_renderTargets[n].CreateFromSwapChain(m_device, m_swapChain, n), ThrowIfFailed(E_FAIL));
+		m_renderTargets[n] = RenderTarget::MakeUnique();
+		N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device, m_swapChain, n), ThrowIfFailed(E_FAIL));
 		N_RETURN(m_device->GetCommandAllocator(m_commandAllocators[n], CommandListType::DIRECT), ThrowIfFailed(E_FAIL));
 	}
 
 	// Create output views
-	m_depth.Create(m_device, m_width, m_height, Format::D24_UNORM_S8_UINT,
+	m_depth = DepthStencil::MakeUnique();
+	m_depth->Create(m_device, m_width, m_height, Format::D24_UNORM_S8_UINT,
 		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false, L"Depth");
 }
 
 // Load the sample assets.
 void VolumeRender::LoadAssets()
 {
-	RawBuffer counter;
-	N_RETURN(counter.Create(m_device, sizeof(uint32_t), ResourceFlag::DENY_SHADER_RESOURCE,
+	const auto counter = RawBuffer::MakeUnique();
+	N_RETURN(counter->Create(m_device, sizeof(uint32_t), ResourceFlag::DENY_SHADER_RESOURCE,
 		MemoryType::READBACK, 0, nullptr, 0), ThrowIfFailed(E_FAIL));
 
 	// Create the command list.
-	N_RETURN(m_device->GetCommandList(m_commandList.GetCommandList(), 0, CommandListType::DIRECT,
+	m_commandList = CommandList::MakeUnique();
+	N_RETURN(m_device->GetCommandList(m_commandList->GetCommandList(), 0, CommandListType::DIRECT,
 		m_commandAllocators[m_frameIndex], nullptr), ThrowIfFailed(E_FAIL));
 
-	vector<Resource> uploaders(0);
+	//vector<Resource> uploaders(0);
 	m_rayCaster = make_unique<RayCaster>(m_device);
 	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
-	if (!m_rayCaster->Init(m_commandList, m_width, m_height, m_descriptorTableCache, uploaders,
+	if (!m_rayCaster->Init(m_width, m_height, m_descriptorTableCache,
 		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_gridSize))
 		ThrowIfFailed(E_FAIL);
 
 	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
 	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
-	if (!m_particleRenderer->Init(m_commandList, m_width, m_height, m_descriptorTableCache, uploaders,
+	if (!m_particleRenderer->Init(m_width, m_height, m_descriptorTableCache,
 		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_numParticles))
 		ThrowIfFailed(E_FAIL);
 
-	m_rayCaster->InitGridData(m_commandList);
-	m_particleRenderer->GenerateParticles(m_commandList, m_rayCaster->GetGridSRVTable(m_commandList));
+	const auto pCommandList = m_commandList.get();
+	m_rayCaster->InitGridData(pCommandList);
+	m_particleRenderer->GenerateParticles(pCommandList, m_rayCaster->GetGridSRVTable(pCommandList));
 
 	// Close the command list and execute it to begin the initial GPU setup.
-	ThrowIfFailed(m_commandList.Close());
-	BaseCommandList* ppCommandLists[] = { m_commandList.GetCommandList().get() };
+	ThrowIfFailed(m_commandList->Close());
+	BaseCommandList* ppCommandLists[] = { m_commandList->GetCommandList().get() };
 	m_commandQueue->ExecuteCommandLists(static_cast<uint32_t>(size(ppCommandLists)), ppCommandLists);
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
@@ -236,7 +240,7 @@ void VolumeRender::OnRender()
 	PopulateCommandList();
 
 	// Execute the command list.
-	BaseCommandList* const ppCommandLists[] = { m_commandList.GetCommandList().get() };
+	BaseCommandList* const ppCommandLists[] = { m_commandList->GetCommandList().get() };
 	m_commandQueue->ExecuteCommandLists(static_cast<uint32_t>(size(ppCommandLists)), ppCommandLists);
 
 	// Present the frame.
@@ -368,7 +372,7 @@ void VolumeRender::PopulateCommandList()
 	// However, when ExecuteCommandList() is called on a particular command 
 	// list, that command list can then be reset at any time and must be before 
 	// re-recording.
-	ThrowIfFailed(m_commandList.Reset(m_commandAllocators[m_frameIndex], nullptr));
+	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex], nullptr));
 
 	// Record commands.
 	const DescriptorPool descriptorPools[] =
@@ -376,49 +380,50 @@ void VolumeRender::PopulateCommandList()
 		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
 		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
 	};
-	m_commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
+	m_commandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
 	ResourceBarrier barriers[1];
-	auto numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET);
-	m_commandList.Barrier(numBarriers, barriers);
+	auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
+	m_commandList->Barrier(numBarriers, barriers);
 
 	// Clear render target
 	const float clearColor[4] = { 0.2f, 0.2f, 0.2f, 0.0f };
-	m_commandList.ClearRenderTargetView(m_renderTargets[m_frameIndex].GetRTV(), clearColor);
-	m_commandList.ClearDepthStencilView(m_depth.GetDSV(), ClearFlag::DEPTH, 1.0f);
+	m_commandList->ClearRenderTargetView(m_renderTargets[m_frameIndex]->GetRTV(), clearColor);
+	m_commandList->ClearDepthStencilView(m_depth->GetDSV(), ClearFlag::DEPTH, 1.0f);
 
-	m_commandList.OMSetRenderTargets(1, &m_renderTargets[m_frameIndex].GetRTV(), &m_depth.GetDSV());
+	m_commandList->OMSetRenderTargets(1, &m_renderTargets[m_frameIndex]->GetRTV(), &m_depth->GetDSV());
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
 	RectRange scissorRect(0, 0, m_width, m_height);
-	m_commandList.RSSetViewports(1, &viewport);
-	m_commandList.RSSetScissorRects(1, &scissorRect);
+	m_commandList->RSSetViewports(1, &viewport);
+	m_commandList->RSSetScissorRects(1, &scissorRect);
 
+	const auto pCommandList = m_commandList.get();
 	switch (g_renderMethod)
 	{
 	case RAY_MARCH_MERGED:
-		m_rayCaster->Render(m_commandList, m_frameIndex, false);
+		m_rayCaster->Render(pCommandList, m_frameIndex, false);
 		break;
 	case RAY_MARCH_SPLITTED:
-		m_rayCaster->Render(m_commandList, m_frameIndex);
+		m_rayCaster->Render(pCommandList, m_frameIndex);
 		break;
 	case PARTICLE_OIT:
-		m_rayCaster->RayMarchL(m_commandList, m_frameIndex);
-		m_particleRenderer->Render(m_commandList, m_rayCaster->GetLightMap(),
-			m_rayCaster->GetLightSRVTable(), m_renderTargets[m_frameIndex].GetRTV(), m_depth.GetDSV());
+		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
+		m_particleRenderer->Render(pCommandList, m_rayCaster->GetLightMap(),
+			m_rayCaster->GetLightSRVTable(), m_renderTargets[m_frameIndex]->GetRTV(), m_depth->GetDSV());
 		break;
 	default:
-		m_rayCaster->RayMarchL(m_commandList, m_frameIndex);
-		m_particleRenderer->ShowParticles(m_commandList, m_rayCaster->GetLightMap(),
+		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
+		m_particleRenderer->ShowParticles(pCommandList, m_rayCaster->GetLightMap(),
 			m_rayCaster->GetLightSRVTable());
 	}
 	
 	// Indicate that the back buffer will now be used to present.
-	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::PRESENT);
-	m_commandList.Barrier(numBarriers, barriers);
+	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::PRESENT);
+	m_commandList->Barrier(numBarriers, barriers);
 
-	ThrowIfFailed(m_commandList.Close());
+	ThrowIfFailed(m_commandList->Close());
 }
 
 // Wait for pending GPU work to complete.

@@ -13,22 +13,20 @@ public:
 	RayCaster(const XUSG::Device& device);
 	virtual ~RayCaster();
 
-	bool Init(const XUSG::CommandList& commandList, uint32_t width, uint32_t height,
-		std::shared_ptr<XUSG::DescriptorTableCache> descriptorTableCache,
-		std::vector<XUSG::Resource>& uploaders, XUSG::Format rtFormat, XUSG::Format dsFormat,
-		const DirectX::XMUINT3& gridSize);
+	bool Init(uint32_t width, uint32_t height, XUSG::DescriptorTableCache::sptr descriptorTableCache,
+		XUSG::Format rtFormat, XUSG::Format dsFormat, const DirectX::XMUINT3& gridSize);
 
-	bool LoadGridData(const XUSG::CommandList& commandList, const wchar_t* fileName, std::vector<XUSG::Resource>& uploaders);
-	void InitGridData(const XUSG::CommandList& commandList);
+	bool LoadGridData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource>& uploaders);
+	void InitGridData(const XUSG::CommandList* pCommandList);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, bool splitLightPass = true);
-	void RayMarchL(const XUSG::CommandList& commandList, uint32_t frameIndex);
+	void Render(const XUSG::CommandList* pCommandList, uint32_t frameIndex, bool splitLightPass = true);
+	void RayMarchL(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
 
-	const XUSG::DescriptorTable& GetGridSRVTable(const XUSG::CommandList& commandList);
+	const XUSG::DescriptorTable& GetGridSRVTable(const XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
 	XUSG::ResourceBase& GetLightMap();
 
@@ -60,17 +58,17 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat);
 	bool createDescriptorTables();
 
-	void rayMarch(const XUSG::CommandList& commandList, uint32_t frameIndex);
-	void rayMarchV(const XUSG::CommandList& commandList, uint32_t frameIndex);
-	void rayCast(const XUSG::CommandList& commandList, uint32_t frameIndex);
+	void rayMarch(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
+	void rayMarchV(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
+	void rayCast(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
 
 	XUSG::Device m_device;
 
-	XUSG::ShaderPool				m_shaderPool;
-	XUSG::Graphics::PipelineCache	m_graphicsPipelineCache;
-	XUSG::Compute::PipelineCache	m_computePipelineCache;
-	XUSG::PipelineLayoutCache		m_pipelineLayoutCache;
-	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
+	XUSG::ShaderPool::uptr				m_shaderPool;
+	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
+	XUSG::Compute::PipelineCache::uptr	m_computePipelineCache;
+	XUSG::PipelineLayoutCache::uptr		m_pipelineLayoutCache;
+	XUSG::DescriptorTableCache::sptr	m_descriptorTableCache;
 
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
@@ -82,11 +80,11 @@ protected:
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
-	std::shared_ptr<XUSG::ResourceBase> m_fileSrc;
-	XUSG::Texture3D			m_grid;
-	XUSG::Texture2D			m_halvedCube[3];
-	XUSG::Texture3D			m_lightMap;
-	XUSG::ConstantBuffer	m_cbPerObject;
+	XUSG::ResourceBase::sptr	m_fileSrc;
+	XUSG::Texture3D::uptr		m_grid;
+	XUSG::Texture2D::uptr		m_halvedCube[3];
+	XUSG::Texture3D::uptr		m_lightMap;
+	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 
 	DirectX::XMUINT3		m_gridSize;
 	DirectX::XMUINT3		m_lightGridSize;
