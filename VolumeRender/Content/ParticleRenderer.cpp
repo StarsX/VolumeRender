@@ -9,7 +9,9 @@ using namespace DirectX;
 using namespace XUSG;
 
 ParticleRenderer::ParticleRenderer(const Device& device) :
-	m_device(device)
+	m_device(device),
+	m_particleSize(XM_PI),
+	m_numParticles(0)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
 	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device);
@@ -22,11 +24,12 @@ ParticleRenderer::~ParticleRenderer()
 }
 
 bool ParticleRenderer::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr descriptorTableCache,
-	Format rtFormat, Format dsFormat, uint32_t numParticles)
+	Format rtFormat, Format dsFormat, uint32_t numParticles, float particleSize)
 {
 	m_viewport = XMUINT2(width, height);
 	m_descriptorTableCache = descriptorTableCache;
 	m_numParticles = numParticles;
+	m_particleSize = particleSize;
 
 	// Create resources
 	m_particles = StructuredBuffer::MakeUnique();
@@ -83,7 +86,7 @@ void ParticleRenderer::UpdateFrame(CXMMATRIX& view, CXMMATRIX& proj, const XMFLO
 	m_cbPerObject.EyePt = eyePt;
 
 	const auto numParticlePerDim = powf(static_cast<float>(m_numParticles), 1.0f / 3.0f);
-	m_cbPerObject.ParticleRadius = XM_PI / numParticlePerDim * XMVectorGetX(world.r[0]);
+	m_cbPerObject.ParticleRadius = m_particleSize / numParticlePerDim * XMVectorGetX(world.r[0]);
 }
 
 void ParticleRenderer::Render(const CommandList* pCommandList, ResourceBase& lightMap,

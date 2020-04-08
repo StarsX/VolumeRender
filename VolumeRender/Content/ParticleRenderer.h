@@ -14,7 +14,7 @@ public:
 	virtual ~ParticleRenderer();
 
 	bool Init(uint32_t width, uint32_t height, XUSG::DescriptorTableCache::sptr descriptorTableCache,
-		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t numParticles);
+		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t numParticles, float particleSize = DirectX::XM_PI);
 
 	void GenerateParticles(const XUSG::CommandList* pCommandList, const XUSG::DescriptorTable& srvTable);
 	void UpdateFrame(DirectX::CXMMATRIX& view, DirectX::CXMMATRIX& proj, const DirectX::XMFLOAT3& eyePt);
@@ -87,6 +87,7 @@ protected:
 	XUSG::StructuredBuffer::uptr	m_particles;
 	XUSG::RenderTarget::uptr		m_rtOITs[2];
 
+	float					m_particleSize;
 	uint32_t				m_numParticles;
 	DirectX::XMUINT2		m_viewport;
 	CBPerObject				m_cbPerObject;
