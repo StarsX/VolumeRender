@@ -57,7 +57,7 @@ VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 
 	const float3 viewDir = normalize(g_eyePt);
 	output.Tex.w = dot(particle.Pos.xyz, viewDir);
-	output.Tex.w = output.Tex.w * 0.5 + 0.5;
+	output.Tex.w = -output.Tex.w * 0.5 + 0.5;
 
 	// Output data
 	output.Pos = mul(output.Pos, g_proj);

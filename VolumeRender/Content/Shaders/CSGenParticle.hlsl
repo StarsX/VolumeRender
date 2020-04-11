@@ -40,7 +40,7 @@ void main(uint DTid : SV_DispatchThreadID)
 
 		particle.Color = g_txGrid.SampleLevel(g_smpLinear, tex, 0.0);
 		//if (rnd(seed) <= particle.Color.w) break;
-		//if (particle.Color.w > 0.25) break;
+		//if (particle.Color.w > 0.125) break;
 		if (max(rnd(seed), 0.125) <= particle.Color.w) break;
 	}
 

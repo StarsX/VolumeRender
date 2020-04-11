@@ -37,7 +37,9 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_isPaused(false),
 	m_tracking(false),
 	m_gridSize(128, 128, 128),
-	m_numParticles(1 << 14)
+	m_numParticles(1 << 14),
+	m_particleSize(2.5f),
+	m_volumeFile(L"")
 {
 #if defined (_DEBUG)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -158,7 +160,7 @@ void VolumeRender::LoadAssets()
 	N_RETURN(m_device->GetCommandList(m_commandList->GetCommandList(), 0, CommandListType::DIRECT,
 		m_commandAllocators[m_frameIndex], nullptr), ThrowIfFailed(E_FAIL));
 
-	//vector<Resource> uploaders(0);
+	vector<Resource> uploaders(0);
 	m_rayCaster = make_unique<RayCaster>(m_device);
 	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
 	if (!m_rayCaster->Init(m_width, m_height, m_descriptorTableCache,
@@ -168,11 +170,12 @@ void VolumeRender::LoadAssets()
 	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
 	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_particleRenderer->Init(m_width, m_height, m_descriptorTableCache,
-		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_numParticles))
+		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_numParticles, m_particleSize))
 		ThrowIfFailed(E_FAIL);
 
 	const auto pCommandList = m_commandList.get();
-	m_rayCaster->InitGridData(pCommandList);
+	if (m_volumeFile.empty()) m_rayCaster->InitGridData(pCommandList);
+	else m_rayCaster->LoadGridData(pCommandList, m_volumeFile.c_str(), uploaders);
 	m_particleRenderer->GenerateParticles(pCommandList, m_rayCaster->GetGridSRVTable(pCommandList));
 
 	// Close the command list and execute it to begin the initial GPU setup.
@@ -357,7 +360,19 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 		else if (_wcsnicmp(argv[i], L"-particles", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/particles", wcslen(argv[i])) == 0)
 		{
-			m_numParticles = ++i < argc ? static_cast<uint32_t>(_wtof(argv[i])) : m_numParticles;
+			m_numParticles = ++i < argc ? _wtoi(argv[i]) : m_numParticles;
+		}
+		else if (_wcsnicmp(argv[i], L"-particleSize", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/particleSize", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"-pSize", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/pSize", wcslen(argv[i])) == 0)
+		{
+			m_particleSize = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_particleSize;
+		}
+		else if (_wcsnicmp(argv[i], L"-volume", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/volume", wcslen(argv[i])) == 0)
+		{
+			m_volumeFile = ++i < argc ? argv[i] : m_volumeFile;
 		}
 	}
 }

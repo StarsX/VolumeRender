@@ -2,9 +2,11 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-float DepthWeight0(float zInv)
+float DepthWeight0(float z, float pSize)
 {
-	return max(pow(abs(zInv), 1.0 / 3.0), 0.01);
+	const float zInv = 1.0 - z / pSize;
+
+	return max(zInv * zInv * zInv, 1e-7);
 }
 
 float DepthWeight1(float w)

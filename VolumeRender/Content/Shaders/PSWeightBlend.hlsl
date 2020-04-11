@@ -24,6 +24,14 @@ struct PSOut
 };
 
 //--------------------------------------------------------------------------------------
+// Constants
+//--------------------------------------------------------------------------------------
+cbuffer cbPerObject
+{
+	float g_particleSize;
+};
+
+//--------------------------------------------------------------------------------------
 // Texture
 //--------------------------------------------------------------------------------------
 Texture3D<float3> g_txLight;
@@ -45,12 +53,12 @@ PSOut main(PSIn input)
 
 	a *= a * 0.5;
 	a *= 0.125;
-	//output.Color.w = a * DepthWeight0(input.Tex.w);
-	//output.Color.w = a * DepthWeight1(input.Pos.w);
-	output.Color.w = a * DepthWeight2(input.Pos.w);
-	//output.Color.w = a * DepthWeight3(input.Pos.w);
-	//output.Color.w = a * DepthWeight4(input.Pos.z);
-	//output.Color.w = a;
+	output.Color.w = a;
+	output.Color.w *= DepthWeight0(input.Tex.w, g_particleSize);
+	//output.Color.w *= DepthWeight1(input.Pos.w);
+	output.Color.w *= DepthWeight2(input.Pos.w);
+	//output.Color.w *= DepthWeight3(input.Pos.w);
+	//output.Color.w *= DepthWeight4(input.Pos.z);
 
 	output.Color.xyz = input.Color * light;
 

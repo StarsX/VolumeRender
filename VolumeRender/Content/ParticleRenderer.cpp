@@ -136,12 +136,13 @@ bool ParticleRenderer::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetConstants(0, SizeOfInUint32(CBPerObject), 0, 0, Shader::VS);
-		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetConstants(1, SizeOfInUint32(float), 0, 0, Shader::PS);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
-		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetShaderStage(1, Shader::VS);
-		pipelineLayout->SetShaderStage(2, Shader::PS);
+		pipelineLayout->SetRange(3, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetShaderStage(2, Shader::VS);
 		pipelineLayout->SetShaderStage(3, Shader::PS);
+		pipelineLayout->SetShaderStage(4, Shader::PS);
 		X_RETURN(m_pipelineLayouts[WEIGHT_BLEND], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
 			PipelineLayoutFlag::NONE, L" WeightBlendingLayout"), false);
 	}
@@ -314,9 +315,10 @@ void ParticleRenderer::weightBlend(const CommandList* pCommandList, ResourceBase
 
 	// Set descriptor tables
 	pCommandList->SetGraphics32BitConstants(0, SizeOfInUint32(m_cbPerObject), &m_cbPerObject);
-	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_PARTICLES]);
-	pCommandList->SetGraphicsDescriptorTable(2, srvTable);
-	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
+	pCommandList->SetGraphics32BitConstants(1, SizeOfInUint32(float), &m_particleSize);
+	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_PARTICLES]);
+	pCommandList->SetGraphicsDescriptorTable(3, srvTable);
+	pCommandList->SetGraphicsDescriptorTable(4, m_samplerTable);
 
 	pCommandList->Draw(4, m_numParticles, 0, 0);
 }
