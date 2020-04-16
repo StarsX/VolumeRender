@@ -250,38 +250,38 @@ bool ParticleRenderer::createDescriptorTables()
 {
 	// Create UAV table
 	{
-		const auto uavTable = Util::DescriptorTable::MakeUnique();
-		uavTable->SetDescriptors(0, 1, &m_particles->GetUAV());
-		X_RETURN(m_uavTable, uavTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_particles->GetUAV());
+		X_RETURN(m_uavTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Create SRV tables
 	{
-		const auto srvTable = Util::DescriptorTable::MakeUnique();
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const Descriptor descriptors[] =
 		{
 			m_particles->GetSRV()
 		};
-		srvTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[SRV_TABLE_PARTICLES], srvTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		X_RETURN(m_srvTables[SRV_TABLE_PARTICLES], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	{
-		const auto srvTable = Util::DescriptorTable::MakeUnique();
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const Descriptor descriptors[] =
 		{
 			m_rtOITs[0]->GetSRV(),
 			m_rtOITs[1]->GetSRV()
 		};
-		srvTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[SRV_TABLE_OIT], srvTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		X_RETURN(m_srvTables[SRV_TABLE_OIT], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Create the sampler
-	const auto samplerTable = Util::DescriptorTable::MakeUnique();
+	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	const auto samplerLinearClamp = SamplerPreset::LINEAR_CLAMP;
-	samplerTable->SetSamplers(0, 1, &samplerLinearClamp, *m_descriptorTableCache);
-	X_RETURN(m_samplerTable, samplerTable->GetSamplerTable(*m_descriptorTableCache), false);
+	descriptorTable->SetSamplers(0, 1, &samplerLinearClamp, *m_descriptorTableCache);
+	X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(*m_descriptorTableCache), false);
 
 	return true;
 }
