@@ -16,7 +16,7 @@ struct PSIn
 //--------------------------------------------------------------------------------------
 // Texture
 //--------------------------------------------------------------------------------------
-Texture2D<float4> g_txHalvedCube[3];
+Texture2DArray<float4> g_txHalvedCube;
 
 //--------------------------------------------------------------------------------------
 // Screen space to loacal space
@@ -96,24 +96,6 @@ float2 ComputeHalvedCubeTexcoord(float3 pos, uint hitSlice)
 }
 
 //--------------------------------------------------------------------------------------
-// Store image data to the corresponding slice
-//--------------------------------------------------------------------------------------
-float4 SampleSlice(float2 tex, uint slice, Texture2D<float4> txHalvedCube[3])
-{
-	switch (slice)
-	{
-	case 0: // X
-		return txHalvedCube[0].SampleLevel(g_smpLinear, tex, 0.0);
-	case 1: // Y
-		return txHalvedCube[1].SampleLevel(g_smpLinear, tex, 0.0);
-	case 2: // Z
-		return txHalvedCube[2].SampleLevel(g_smpLinear, tex, 0.0);
-	default:
-		return 0.0;
-	}
-}
-
-//--------------------------------------------------------------------------------------
 // Pixel Shader
 //--------------------------------------------------------------------------------------
 min16float4 main(PSIn input) : SV_TARGET
@@ -127,8 +109,7 @@ min16float4 main(PSIn input) : SV_TARGET
 	if (hitSlice > 2) discard;
 
 	const float2 tex = ComputeHalvedCubeTexcoord(pos, hitSlice);
-
-	float4 result = SampleSlice(tex, hitSlice, g_txHalvedCube);
+	float4 result = g_txHalvedCube.SampleLevel(g_smpLinear, float3(tex, hitSlice), 0.0);
 	//if (result.w < 0.0) discard;
 
 	return min16float4(result.xyz, result.w);

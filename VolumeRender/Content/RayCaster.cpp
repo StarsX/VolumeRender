@@ -42,7 +42,7 @@ RayCaster::~RayCaster()
 }
 
 bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr descriptorTableCache,
-	Format rtFormat, Format dsFormat, const XMUINT3& gridSize)
+	Format rtFormat, Format dsFormat, uint32_t gridSize)
 {
 	m_viewport = XMUINT2(width, height);
 	m_descriptorTableCache = descriptorTableCache;
@@ -50,21 +50,21 @@ bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr
 
 	// Create resources
 	m_grid = Texture3D::MakeUnique();
-	N_RETURN(m_grid->Create(m_device, gridSize.x, gridSize.y, gridSize.z, Format::R16G16B16A16_FLOAT,
+	N_RETURN(m_grid->Create(m_device, gridSize, gridSize, gridSize, Format::R16G16B16A16_FLOAT,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS, 1,
 		MemoryType::DEFAULT, L"Grid"), false);
 
-	for (auto& texture : m_halvedCube) texture = Texture2D::MakeUnique();
-	N_RETURN(m_halvedCube[0]->Create(m_device, gridSize.z, gridSize.y, Format::R8G8B8A8_UNORM, 1,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"HalvedCubeX"), false);
-	N_RETURN(m_halvedCube[1]->Create(m_device, gridSize.x, gridSize.z, Format::R8G8B8A8_UNORM, 1,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"HalvedCubeY"), false);
-	N_RETURN(m_halvedCube[2]->Create(m_device, gridSize.x, gridSize.y, Format::R8G8B8A8_UNORM, 1,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"HalvedCubeZ"), false);
+	m_halvedCube = Texture2D::MakeUnique();
+	N_RETURN(m_halvedCube->Create(m_device, gridSize, gridSize, Format::R8G8B8A8_UNORM, 3,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"HalvedCube"), false);
+	
+	m_cube = Texture2D::MakeUnique();
+	N_RETURN(m_cube->Create(m_device, gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
 
-	m_lightGridSize = XMUINT3(gridSize.x >> 1, gridSize.y >> 1, gridSize.z >> 1);
+	m_lightGridSize = gridSize >> 1;
 	m_lightMap = Texture3D::MakeUnique();
-	N_RETURN(m_lightMap->Create(m_device, m_lightGridSize.x, m_lightGridSize.y, m_lightGridSize.z,
+	N_RETURN(m_lightMap->Create(m_device, m_lightGridSize, m_lightGridSize, m_lightGridSize,
 		Format::R11G11B10_FLOAT,ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS,
 		1, MemoryType::DEFAULT, L"Light"), false);
 
@@ -115,7 +115,7 @@ bool RayCaster::LoadGridData(CommandList* pCommandList, const wchar_t* fileName,
 	pCommandList->SetComputeDescriptorTable(2, m_samplerTable);
 
 	// Dispatch grid
-	pCommandList->Dispatch(DIV_UP(m_gridSize.x, 4), DIV_UP(m_gridSize.y, 4), DIV_UP(m_gridSize.z, 4));
+	pCommandList->Dispatch(DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4));
 
 	return true;
 }
@@ -134,7 +134,7 @@ void RayCaster::InitGridData(const CommandList* pCommandList)
 	pCommandList->SetComputeDescriptorTable(0, m_uavTable);
 
 	// Dispatch grid
-	pCommandList->Dispatch(DIV_UP(m_gridSize.x, 4), DIV_UP(m_gridSize.y, 4), DIV_UP(m_gridSize.z, 4));
+	pCommandList->Dispatch(DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4));
 }
 
 void RayCaster::SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos)
@@ -211,7 +211,7 @@ void RayCaster::RayMarchL(const CommandList* pCommandList, uint32_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(2, m_samplerTable);
 
 	// Dispatch grid
-	pCommandList->Dispatch(DIV_UP(m_lightGridSize.x, 4), DIV_UP(m_lightGridSize.y, 4), DIV_UP(m_lightGridSize.z, 4));
+	pCommandList->Dispatch(DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4));
 }
 
 const DescriptorTable& RayCaster::GetGridSRVTable(const CommandList* pCommandList)
@@ -259,7 +259,7 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0);
-		pipelineLayout->SetRange(1, DescriptorType::UAV, 3, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
 		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
@@ -281,7 +281,7 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0);
-		pipelineLayout->SetRange(1, DescriptorType::UAV, 3, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
@@ -292,7 +292,7 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0);
-		pipelineLayout->SetRange(1, DescriptorType::SRV, 3, 0);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
@@ -397,9 +397,7 @@ bool RayCaster::createDescriptorTables()
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const Descriptor descriptors[] =
 		{
-			m_halvedCube[0]->GetUAV(),
-			m_halvedCube[1]->GetUAV(),
-			m_halvedCube[2]->GetUAV(),
+			m_halvedCube->GetUAV(),
 			m_grid->GetSRV(),
 			m_lightMap->GetSRV()
 		};
@@ -429,13 +427,7 @@ bool RayCaster::createDescriptorTables()
 	// Create SRV table
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		const Descriptor descriptors[] =
-		{
-			m_halvedCube[0]->GetSRV(),
-			m_halvedCube[1]->GetSRV(),
-			m_halvedCube[2]->GetSRV()
-		};
-		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		descriptorTable->SetDescriptors(0, 1, &m_halvedCube->GetSRV());
 		X_RETURN(m_srvTables[SRV_TABLE_HALVED_CUBE], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
@@ -458,11 +450,9 @@ bool RayCaster::createDescriptorTables()
 void RayCaster::rayMarch(const CommandList* pCommandList, uint32_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[3];
-	auto numBarriers = 0u;
-	for (auto& slice : m_halvedCube)
-		numBarriers = slice->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
-	pCommandList->Barrier(numBarriers, barriers);
+	ResourceBarrier barrier;
+	const auto numBarriers = m_halvedCube->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
+	pCommandList->Barrier(numBarriers, &barrier);
 
 	// Set pipeline state
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[RAY_MARCH]);
@@ -474,16 +464,15 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint32_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(2, m_samplerTable);
 
 	// Dispatch halved cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize.x, 8), DIV_UP(m_gridSize.y, 8), 3);
+	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 3);
 }
 
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint32_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[4];
+	ResourceBarrier barriers[2];
 	auto numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
-	for (auto& slice : m_halvedCube)
-		numBarriers = slice->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
+	numBarriers = m_halvedCube->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -496,17 +485,15 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint32_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(2, m_samplerTable);
 
 	// Dispatch halved cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize.x, 8), DIV_UP(m_gridSize.y, 8), 3);
+	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 3);
 }
 
 void RayCaster::rayCast(const CommandList* pCommandList, uint32_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[3];
-	auto numBarriers = 0u;
-	for (auto& slice : m_halvedCube)
-		numBarriers = slice->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
-	pCommandList->Barrier(numBarriers, barriers);
+	ResourceBarrier barrier;
+	const auto numBarriers = m_halvedCube->SetBarrier(&barrier, ResourceState::PIXEL_SHADER_RESOURCE);
+	pCommandList->Barrier(numBarriers, &barrier);
 
 	// Set pipeline state
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[RAY_CAST]);

@@ -81,7 +81,7 @@ private:
 	XMFLOAT2 m_mousePt;
 
 	// User external settings
-	XMUINT3 m_gridSize;
+	uint32_t m_gridSize;
 	uint32_t m_numParticles;
 	float m_particleSize;
 	std::wstring m_volumeFile;

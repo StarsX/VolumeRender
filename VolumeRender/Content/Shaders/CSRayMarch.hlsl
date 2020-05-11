@@ -20,57 +20,16 @@ Texture3D<float3> g_txLightMap;
 //--------------------------------------------------------------------------------------
 // Unordered access texture
 //--------------------------------------------------------------------------------------
-RWTexture2D<float4> g_rwHalvedCube[3];
-
-//--------------------------------------------------------------------------------------
-// Store image data to the corresponding slice
-//--------------------------------------------------------------------------------------
-void ImageStore(uint3 pos, float4 data, RWTexture2D<float4> rwHalvedCube[3])
-{
-	switch (pos.z)
-	{
-	case 0: // +X
-	case 3: // -X
-		rwHalvedCube[0][pos.xy] = data;
-		return;
-	case 1: // +Y
-	case 4: // -Y
-		rwHalvedCube[1][pos.xy] = data;
-		return;
-	case 2: // +Z
-	case 5: // -Z
-		rwHalvedCube[2][pos.xy] = data;
-		return;
-	default:
-		return;
-	}
-}
+RWTexture2DArray<float4> g_rwHalvedCube;
 
 //--------------------------------------------------------------------------------------
 // Get the local-space position of the grid surface
 //--------------------------------------------------------------------------------------
-float3 GetLocalPos(float2 pos, uint slice, RWTexture2D<float4> rwHalvedCube[3])
+float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwHalvedCube)
 {
-	float2 gridSize;
-	switch (slice)
-	{
-	case 0: // +X
-	case 3: // -X
-		rwHalvedCube[0].GetDimensions(gridSize.x, gridSize.y);
-		break;
-	case 1: // +Y
-	case 4: // -Y
-		rwHalvedCube[1].GetDimensions(gridSize.x, gridSize.y);
-		break;
-	case 2: // +Z
-	case 5: // -Z
-		rwHalvedCube[2].GetDimensions(gridSize.x, gridSize.y);
-		break;
-	default:
-		gridSize = 0;
-		break;
-	}
-
+	float3 gridSize;
+	rwHalvedCube.GetDimensions(gridSize.x, gridSize.y, gridSize.z);
+	
 	pos = (pos + 0.5) / gridSize.xy * 2.0 - 1.0;
 	pos.y = -pos.y;
 
@@ -78,14 +37,14 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2D<float4> rwHalvedCube[3])
 	{
 	case 0: // +X
 		return float3(1.0, pos.yx);
-	case 1: // +Y
-		return float3(pos.x, 1.0, pos.y);
-	case 2: // +Z
-		return float3(-pos.x, pos.y, 1.0);
-	case 3: // -X
+	case 1: // -X
 		return float3(-1.0, pos.y, -pos.x);
-	case 4: // -Y
+	case 2: // +Y
+		return float3(pos.x, 1.0, pos.y);
+	case 3: // -Y
 		return float3(pos.x, -1.0, -pos.y);
+	case 4: // +Z
+		return float3(-pos.x, pos.y, 1.0);
 	case 5: // -Z
 		return float3(pos, -1.0);
 	default:
@@ -96,14 +55,14 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2D<float4> rwHalvedCube[3])
 //--------------------------------------------------------------------------------------
 // Get the local-space position of the grid surface
 //--------------------------------------------------------------------------------------
-float3 GetLocalPos(uint3 pos, float3 localSpaceEyePt, RWTexture2D<float4> rwHalvedCube[3])
+float3 GetLocalPos(uint3 pos, float3 localSpaceEyePt, RWTexture2DArray<float4> rwHalvedCube)
 {
 	float4 focus = mul(float4(0.0.xxx, 1.0), g_worldViewProjI);
 	focus.xyz /= focus.w;
 
 	const float3 viewVec = localSpaceEyePt - focus.xyz;
 
-	pos.z = viewVec[pos.z] < 0.0 ? pos.z + 3 : pos.z;
+	pos.z = viewVec[pos.z] < 0.0 ? pos.z * 2 + 1 : pos.z * 2;
 
 	return GetLocalPos(pos.xy, pos.z, rwHalvedCube);
 }
@@ -199,5 +158,5 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		pos += step;
 	}
 
-	ImageStore(DTid, float4(scatter, 1.0 - transm), g_rwHalvedCube);
+	g_rwHalvedCube[DTid] = float4(scatter, 1.0 - transm);
 }

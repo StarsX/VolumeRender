@@ -36,7 +36,7 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_showFPS(true),
 	m_isPaused(false),
 	m_tracking(false),
-	m_gridSize(128, 128, 128),
+	m_gridSize(128),
 	m_numParticles(1 << 14),
 	m_particleSize(2.5f),
 	m_volumeFile(L"")
@@ -350,11 +350,7 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 	{
 		if (_wcsnicmp(argv[i], L"-gridSize", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/gridSize", wcslen(argv[i])) == 0)
-		{
-			m_gridSize.x = ++i < argc ? static_cast<uint32_t>(_wtof(argv[i])) : m_gridSize.x;
-			m_gridSize.y = ++i < argc ? static_cast<uint32_t>(_wtof(argv[i])) : m_gridSize.y;
-			m_gridSize.z = ++i < argc ? static_cast<uint32_t>(_wtof(argv[i])) : m_gridSize.z;
-		}
+			m_gridSize = ++i < argc ? static_cast<uint32_t>(_wtof(argv[i])) : m_gridSize;
 		else if (_wcsnicmp(argv[i], L"-particles", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/particles", wcslen(argv[i])) == 0)
 		{

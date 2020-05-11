@@ -14,7 +14,7 @@ public:
 	virtual ~RayCaster();
 
 	bool Init(uint32_t width, uint32_t height, XUSG::DescriptorTableCache::sptr descriptorTableCache,
-		XUSG::Format rtFormat, XUSG::Format dsFormat, const DirectX::XMUINT3& gridSize);
+		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t gridSize);
 
 	bool LoadGridData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource>& uploaders);
 	void InitGridData(const XUSG::CommandList* pCommandList);
@@ -82,12 +82,13 @@ protected:
 
 	XUSG::ResourceBase::sptr	m_fileSrc;
 	XUSG::Texture3D::uptr		m_grid;
-	XUSG::Texture2D::uptr		m_halvedCube[3];
+	XUSG::Texture2D::uptr		m_halvedCube;
+	XUSG::Texture2D::uptr		m_cube;
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 
-	DirectX::XMUINT3		m_gridSize;
-	DirectX::XMUINT3		m_lightGridSize;
+	uint32_t				m_gridSize;
+	uint32_t				m_lightGridSize;
 	DirectX::XMUINT2		m_viewport;
 
 	DirectX::XMFLOAT3		m_lightPt;
