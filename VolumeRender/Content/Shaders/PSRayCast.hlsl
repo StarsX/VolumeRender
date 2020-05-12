@@ -69,20 +69,21 @@ uint ComputeCubePoint(inout float3 pos, float3 rayDir)
 float3 ComputeCubeTexcoord(float3 pos, uint hitPlane)
 {
 	float3 tex;
+
 	switch (hitPlane)
 	{
 	case 0: // X
-		tex.x = -sign(pos.x) * pos.z;
+		tex.x = -pos.x * pos.z;
 		tex.y = pos.y;
 		tex.z = pos.x < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	case 1: // Y
 		tex.x = pos.x;
-		tex.y = -sign(pos.y) * pos.z;
+		tex.y = -pos.y * pos.z;
 		tex.z = pos.y < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	case 2: // Z
-		tex.x = sign(pos.z) * pos.x;
+		tex.x = pos.z * pos.x;
 		tex.y = pos.y;
 		tex.z = pos.z < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
