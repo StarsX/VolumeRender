@@ -57,7 +57,8 @@ uint ComputeCubePoint(inout float3 pos, float3 rayDir)
 		}
 	}
 
-	pos = clamp(rayDir * U + pos, -1.0, 1.0);
+	//pos = clamp(rayDir * U + pos, -1.0, 1.0);
+	pos = rayDir * U + pos;
 
 	return hitPlane;
 }

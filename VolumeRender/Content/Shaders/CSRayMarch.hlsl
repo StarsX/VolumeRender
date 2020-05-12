@@ -57,11 +57,10 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
 //--------------------------------------------------------------------------------------
 bool IsVisible(uint slice, float3 target, float3 localSpaceEyePt)
 {
-	const float3 viewVec = localSpaceEyePt - target;
 	const uint plane = slice >> 1;
-	const float one = (slice & 0x1) ? 1.0 : -1.0;
+	const float viewComp = localSpaceEyePt[plane] - target[plane];
 
-	return viewVec[plane] * one > 0.0;
+	return (slice & 0x1) ? viewComp > 0.0 : viewComp < 0.0;
 }
 
 //--------------------------------------------------------------------------------------
