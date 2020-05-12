@@ -20,15 +20,15 @@ Texture3D<float3> g_txLightMap;
 //--------------------------------------------------------------------------------------
 // Unordered access texture
 //--------------------------------------------------------------------------------------
-RWTexture2DArray<float4> g_rwHalvedCube;
+RWTexture2DArray<float4> g_rwCubeMap;
 
 //--------------------------------------------------------------------------------------
 // Get the local-space position of the grid surface
 //--------------------------------------------------------------------------------------
-float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwHalvedCube)
+float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
 {
 	float3 gridSize;
-	rwHalvedCube.GetDimensions(gridSize.x, gridSize.y, gridSize.z);
+	rwCubeMap.GetDimensions(gridSize.x, gridSize.y, gridSize.z);
 	
 	pos = (pos + 0.5) / gridSize.xy * 2.0 - 1.0;
 	pos.y = -pos.y;
@@ -36,35 +36,64 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwHalvedCube
 	switch (slice)
 	{
 	case 0: // +X
-		return float3(1.0, pos.yx);
+		return float3(1.0, pos.y, -pos.x);
 	case 1: // -X
-		return float3(-1.0, pos.y, -pos.x);
+		return float3(-1.0, pos.y, pos.x);
 	case 2: // +Y
-		return float3(pos.x, 1.0, pos.y);
+		return float3(pos.x, 1.0, -pos.y);
 	case 3: // -Y
-		return float3(pos.x, -1.0, -pos.y);
+		return float3(pos.x, -1.0, pos.y);
 	case 4: // +Z
-		return float3(-pos.x, pos.y, 1.0);
+		return float3(pos.x, pos.y, 1.0);
 	case 5: // -Z
-		return float3(pos, -1.0);
+		return float3(-pos.x, pos.y, -1.0);
 	default:
 		return 0.0;
 	}
 }
 
 //--------------------------------------------------------------------------------------
-// Get the local-space position of the grid surface
+// Compute start point of the ray
 //--------------------------------------------------------------------------------------
-float3 GetLocalPos(uint3 pos, float3 localSpaceEyePt, RWTexture2DArray<float4> rwHalvedCube)
+bool IsVisible(uint slice, float3 target, float3 localSpaceEyePt)
 {
-	float4 focus = mul(float4(0.0.xxx, 1.0), g_worldViewProjI);
-	focus.xyz /= focus.w;
+	const float3 viewVec = localSpaceEyePt - target;
+	const uint plane = slice >> 1;
+	const float one = (slice & 0x1) ? 1.0 : -1.0;
 
-	const float3 viewVec = localSpaceEyePt - focus.xyz;
+	return viewVec[plane] * one > 0.0;
+}
 
-	pos.z = viewVec[pos.z] < 0.0 ? pos.z * 2 + 1 : pos.z * 2;
+//--------------------------------------------------------------------------------------
+// Compute start point of the ray
+//--------------------------------------------------------------------------------------
+bool ComputeStartPoint(inout float3 pos, float3 rayDir)
+{
+	if (all(abs(pos) <= 1.0)) return true;
 
-	return GetLocalPos(pos.xy, pos.z, rwHalvedCube);
+	//float U = asfloat(0x7f800000);	// INF
+	float U = 3.402823466e+38;			// FLT_MAX
+	bool isHit = false;
+
+	[unroll]
+	for (uint i = 0; i < 3; ++i)
+	{
+		const float u = (-sign(rayDir[i]) - pos[i]) / rayDir[i];
+		if (u < 0.0) continue;
+
+		const uint j = (i + 1) % 3, k = (i + 2) % 3;
+		if (abs(rayDir[j] * u + pos[j]) > 1.0) continue;
+		if (abs(rayDir[k] * u + pos[k]) > 1.0) continue;
+		if (u < U)
+		{
+			U = u;
+			isHit = true;
+		}
+	}
+
+	pos = clamp(rayDir * U + pos, -1.0, 1.0);
+
+	return isHit;
 }
 
 //--------------------------------------------------------------------------------------
@@ -73,18 +102,15 @@ float3 GetLocalPos(uint3 pos, float3 localSpaceEyePt, RWTexture2DArray<float4> r
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI).xyz;
-	if (localSpaceEyePt[DTid.z] == 0.0) return;
+	float3 pos = mul(g_eyePos, g_worldI).xyz;
+	//if (pos[DTid.z>> 1] == 0.0) return;
 
-	float3 pos = GetLocalPos(DTid, localSpaceEyePt, g_rwHalvedCube);
-	float3 rayDir = normalize(pos - localSpaceEyePt);
+	const float3 target = GetLocalPos(DTid.xy, DTid.z, g_rwCubeMap);
+	if (!IsVisible(DTid.z, target, pos)) return;
 
-	if (all(abs(localSpaceEyePt) <= 1.0))
-	{
-		pos = localSpaceEyePt;
-		rayDir = -rayDir;
-	}
-
+	const float3 rayDir = normalize(target - pos);
+	if (!ComputeStartPoint(pos, rayDir)) return;
+	
 	const float3 step = rayDir * g_stepScale;
 #ifdef _POINT_LIGHT_
 	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;
@@ -158,5 +184,5 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		pos += step;
 	}
 
-	g_rwHalvedCube[DTid] = float4(scatter, 1.0 - transm);
+	g_rwCubeMap[DTid] = float4(scatter, 1.0 - transm);
 }

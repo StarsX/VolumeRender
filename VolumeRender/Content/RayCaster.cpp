@@ -54,19 +54,15 @@ bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr
 		ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS, 1,
 		MemoryType::DEFAULT, L"Grid"), false);
 
-	m_halvedCube = Texture2D::MakeUnique();
-	N_RETURN(m_halvedCube->Create(m_device, gridSize, gridSize, Format::R8G8B8A8_UNORM, 3,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"HalvedCube"), false);
-	
-	m_cube = Texture2D::MakeUnique();
-	N_RETURN(m_cube->Create(m_device, gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
+	m_cubeMap = Texture2D::MakeUnique();
+	N_RETURN(m_cubeMap->Create(m_device, gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"CubeMap"), false);
 
 	m_lightGridSize = gridSize >> 1;
 	m_lightMap = Texture3D::MakeUnique();
 	N_RETURN(m_lightMap->Create(m_device, m_lightGridSize, m_lightGridSize, m_lightGridSize,
 		Format::R11G11B10_FLOAT,ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS,
-		1, MemoryType::DEFAULT, L"Light"), false);
+		1, MemoryType::DEFAULT, L"LightMap"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device, sizeof(CBPerObject), FrameCount,
@@ -397,7 +393,7 @@ bool RayCaster::createDescriptorTables()
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const Descriptor descriptors[] =
 		{
-			m_halvedCube->GetUAV(),
+			m_cubeMap->GetUAV(),
 			m_grid->GetSRV(),
 			m_lightMap->GetSRV()
 		};
@@ -427,7 +423,7 @@ bool RayCaster::createDescriptorTables()
 	// Create SRV table
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_halvedCube->GetSRV());
+		descriptorTable->SetDescriptors(0, 1, &m_cubeMap->GetSRV());
 		X_RETURN(m_srvTables[SRV_TABLE_HALVED_CUBE], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
@@ -451,7 +447,7 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint32_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barrier;
-	const auto numBarriers = m_halvedCube->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
+	const auto numBarriers = m_cubeMap->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
 	pCommandList->Barrier(numBarriers, &barrier);
 
 	// Set pipeline state
@@ -464,7 +460,7 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint32_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(2, m_samplerTable);
 
 	// Dispatch halved cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 3);
+	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 6);
 }
 
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint32_t frameIndex)
@@ -472,7 +468,7 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint32_t frameIndex)
 	// Set barriers
 	ResourceBarrier barriers[2];
 	auto numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
-	numBarriers = m_halvedCube->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
+	numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -485,14 +481,14 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint32_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(2, m_samplerTable);
 
 	// Dispatch halved cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 3);
+	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 6);
 }
 
 void RayCaster::rayCast(const CommandList* pCommandList, uint32_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barrier;
-	const auto numBarriers = m_halvedCube->SetBarrier(&barrier, ResourceState::PIXEL_SHADER_RESOURCE);
+	const auto numBarriers = m_cubeMap->SetBarrier(&barrier, ResourceState::PIXEL_SHADER_RESOURCE);
 	pCommandList->Barrier(numBarriers, &barrier);
 
 	// Set pipeline state

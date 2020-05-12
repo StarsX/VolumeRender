@@ -16,10 +16,10 @@ struct PSIn
 //--------------------------------------------------------------------------------------
 // Texture
 //--------------------------------------------------------------------------------------
-Texture2DArray<float4> g_txHalvedCube;
+Texture2DArray<float4> g_txCubeMap;
 
 //--------------------------------------------------------------------------------------
-// Screen space to loacal space
+// Screen space to local space
 //--------------------------------------------------------------------------------------
 float3 TexcoordToLocalPos(float2 tex)
 {
@@ -33,22 +33,19 @@ float3 TexcoordToLocalPos(float2 tex)
 }
 
 //--------------------------------------------------------------------------------------
-// Compute start point of the ray
+// Compute end point of the ray on the cube surface
 //--------------------------------------------------------------------------------------
-uint ComputeStartPoint(inout float3 pos, float3 rayDir)
+uint ComputeCubePoint(inout float3 pos, float3 rayDir)
 {
-	float3 one = -sign(rayDir);
-	rayDir = all(abs(pos) <= 1.0) ? -rayDir : rayDir;
-
 	//float U = asfloat(0x7f800000);	// INF
 	float U = 3.402823466e+38;			// FLT_MAX
-	uint hitSlice = 0xffffffff;
+	uint hitPlane = 0xffffffff;
 
 	[unroll]
 	for (uint i = 0; i < 3; ++i)
 	{
-		const float u = (one[i] - pos[i]) / rayDir[i];
-		if (u < 0.0h) continue;
+		const float u = (sign(rayDir[i]) - pos[i]) / rayDir[i];
+		if (u < 0.0) continue;
 
 		const uint j = (i + 1) % 3, k = (i + 2) % 3;
 		if (abs(rayDir[j] * u + pos[j]) > 1.0) continue;
@@ -56,34 +53,37 @@ uint ComputeStartPoint(inout float3 pos, float3 rayDir)
 		if (u < U)
 		{
 			U = u;
-			hitSlice = i;
+			hitPlane = i;
 		}
 	}
 
 	pos = clamp(rayDir * U + pos, -1.0, 1.0);
 
-	return hitSlice;
+	return hitPlane;
 }
 
 //--------------------------------------------------------------------------------------
 // Compute texcoord
 //--------------------------------------------------------------------------------------
-float2 ComputeHalvedCubeTexcoord(float3 pos, uint hitSlice)
+float3 ComputeCubeTexcoord(float3 pos, uint hitPlane)
 {
-	float2 tex;
-	switch (hitSlice)
+	float3 tex;
+	switch (hitPlane)
 	{
 	case 0: // X
-		tex.x = sign(pos.x) * pos.z;
+		tex.x = -sign(pos.x) * pos.z;
 		tex.y = pos.y;
+		tex.z = pos.x < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	case 1: // Y
 		tex.x = pos.x;
-		tex.y = sign(pos.y) * pos.z;
+		tex.y = -sign(pos.y) * pos.z;
+		tex.z = pos.y < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	case 2: // Z
-		tex.x = -sign(pos.z) * pos.x;
+		tex.x = sign(pos.z) * pos.x;
 		tex.y = pos.y;
+		tex.z = pos.z < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	default:
 		tex = 0.0;
@@ -103,13 +103,12 @@ min16float4 main(PSIn input) : SV_TARGET
 	float3 pos = TexcoordToLocalPos(input.Tex);	// The point on the near plane
 	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI).xyz;
 	const float3 rayDir = normalize(pos - localSpaceEyePt);
-	pos = localSpaceEyePt;
 
-	const uint hitSlice = ComputeStartPoint(pos, rayDir);
-	if (hitSlice > 2) discard;
+	const uint hitPlane = ComputeCubePoint(pos, rayDir);
+	if (hitPlane > 2) discard;
 
-	const float2 tex = ComputeHalvedCubeTexcoord(pos, hitSlice);
-	float4 result = g_txHalvedCube.SampleLevel(g_smpLinear, float3(tex, hitSlice), 0.0);
+	const float3 tex = ComputeCubeTexcoord(pos, hitPlane);
+	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, tex, 0.0);
 	//if (result.w < 0.0) discard;
 
 	return min16float4(result.xyz, result.w);

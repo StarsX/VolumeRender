@@ -82,8 +82,7 @@ protected:
 
 	XUSG::ResourceBase::sptr	m_fileSrc;
 	XUSG::Texture3D::uptr		m_grid;
-	XUSG::Texture2D::uptr		m_halvedCube;
-	XUSG::Texture2D::uptr		m_cube;
+	XUSG::Texture2D::uptr		m_cubeMap;
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 
