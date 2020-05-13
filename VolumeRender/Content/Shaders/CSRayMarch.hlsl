@@ -53,7 +53,7 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
 }
 
 //--------------------------------------------------------------------------------------
-// Compute start point of the ray
+// Check the visibility of the slice
 //--------------------------------------------------------------------------------------
 bool IsVisible(uint slice, float3 target, float3 localSpaceEyePt)
 {
