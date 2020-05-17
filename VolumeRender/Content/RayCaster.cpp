@@ -49,10 +49,10 @@ bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr
 	m_gridSize = gridSize;
 
 	// Create resources
-	m_grid = Texture3D::MakeUnique();
-	N_RETURN(m_grid->Create(m_device, gridSize, gridSize, gridSize, Format::R16G16B16A16_FLOAT,
+	m_volume = Texture3D::MakeUnique();
+	N_RETURN(m_volume->Create(m_device, gridSize, gridSize, gridSize, Format::R16G16B16A16_FLOAT,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS, 1,
-		MemoryType::DEFAULT, L"Grid"), false);
+		MemoryType::DEFAULT, L"Volume"), false);
 
 	m_cubeMap = Texture2D::MakeUnique();
 	N_RETURN(m_cubeMap->Create(m_device, gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
@@ -76,7 +76,7 @@ bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr
 	return true;
 }
 
-bool RayCaster::LoadGridData(CommandList* pCommandList, const wchar_t* fileName, vector<Resource>& uploaders)
+bool RayCaster::LoadVolumeData(CommandList* pCommandList, const wchar_t* fileName, vector<Resource>& uploaders)
 {
 	// Load input image
 	{
@@ -94,6 +94,9 @@ bool RayCaster::LoadGridData(CommandList* pCommandList, const wchar_t* fileName,
 		X_RETURN(m_srvTables[SRV_TABLE_FILE_SRC], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
+	ResourceBarrier barrier;
+	m_volume->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
+
 	const DescriptorPool descriptorPools[] =
 	{
 		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
@@ -102,8 +105,8 @@ bool RayCaster::LoadGridData(CommandList* pCommandList, const wchar_t* fileName,
 	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
 	// Set pipeline state
-	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[LOAD_GRID_DATA]);
-	pCommandList->SetPipelineState(m_pipelines[LOAD_GRID_DATA]);
+	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[LOAD_VOLUME_DATA]);
+	pCommandList->SetPipelineState(m_pipelines[LOAD_VOLUME_DATA]);
 
 	// Set descriptor tables
 	pCommandList->SetComputeDescriptorTable(0, m_srvTables[SRV_TABLE_FILE_SRC]);
@@ -116,15 +119,18 @@ bool RayCaster::LoadGridData(CommandList* pCommandList, const wchar_t* fileName,
 	return true;
 }
 
-void RayCaster::InitGridData(const CommandList* pCommandList)
+void RayCaster::InitVolumeData(const CommandList* pCommandList)
 {
+	ResourceBarrier barrier;
+	m_volume->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
+
 	const DescriptorPool pDescriptorPool[] =
 	{ m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL) };
 	pCommandList->SetDescriptorPools(1, pDescriptorPool);
 
 	// Set pipeline state
-	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[INIT_GRID_DATA]);
-	pCommandList->SetPipelineState(m_pipelines[INIT_GRID_DATA]);
+	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[INIT_VOLUME_DATA]);
+	pCommandList->SetPipelineState(m_pipelines[INIT_VOLUME_DATA]);
 
 	// Set descriptor tables
 	pCommandList->SetComputeDescriptorTable(0, m_uavTable);
@@ -210,11 +216,11 @@ void RayCaster::RayMarchL(const CommandList* pCommandList, uint32_t frameIndex)
 	pCommandList->Dispatch(DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4));
 }
 
-const DescriptorTable& RayCaster::GetGridSRVTable(const CommandList* pCommandList)
+const DescriptorTable& RayCaster::GetVolumeSRVTable(const CommandList* pCommandList)
 {
 	// Set barrier
 	ResourceBarrier barrier;
-	const auto numBarriers = m_grid->SetBarrier(&barrier, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+	const auto numBarriers = m_volume->SetBarrier(&barrier, ResourceState::NON_PIXEL_SHADER_RESOURCE |
 		ResourceState::PIXEL_SHADER_RESOURCE);
 	pCommandList->Barrier(numBarriers, &barrier);
 
@@ -239,7 +245,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(0, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[LOAD_GRID_DATA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[LOAD_VOLUME_DATA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
 			PipelineLayoutFlag::NONE, L"LoadGridDataLayout"), false);
 	}
 
@@ -247,7 +253,7 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		X_RETURN(m_pipelineLayouts[INIT_GRID_DATA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[INIT_VOLUME_DATA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
 			PipelineLayoutFlag::NONE, L"InitGridDataLayout"), false);
 	}
 
@@ -311,9 +317,9 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSR32FToRGBA16F.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
-		state->SetPipelineLayout(m_pipelineLayouts[LOAD_GRID_DATA]);
+		state->SetPipelineLayout(m_pipelineLayouts[LOAD_VOLUME_DATA]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[LOAD_GRID_DATA], state->GetPipeline(*m_computePipelineCache, L"InitGridData"), false);
+		X_RETURN(m_pipelines[LOAD_VOLUME_DATA], state->GetPipeline(*m_computePipelineCache, L"InitGridData"), false);
 	}
 
 	// Init grid data
@@ -321,9 +327,9 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSInitGridData.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
-		state->SetPipelineLayout(m_pipelineLayouts[INIT_GRID_DATA]);
+		state->SetPipelineLayout(m_pipelineLayouts[INIT_VOLUME_DATA]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[INIT_GRID_DATA], state->GetPipeline(*m_computePipelineCache, L"InitGridData"), false);
+		X_RETURN(m_pipelines[INIT_VOLUME_DATA], state->GetPipeline(*m_computePipelineCache, L"InitGridData"), false);
 	}
 
 	// Ray marching
@@ -394,7 +400,7 @@ bool RayCaster::createDescriptorTables()
 		const Descriptor descriptors[] =
 		{
 			m_cubeMap->GetUAV(),
-			m_grid->GetSRV(),
+			m_volume->GetSRV(),
 			m_lightMap->GetSRV()
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
@@ -413,7 +419,7 @@ bool RayCaster::createDescriptorTables()
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const Descriptor descriptors[] =
 		{
-			m_grid->GetSRV(),
+			m_volume->GetSRV(),
 			m_lightMap->GetUAV()
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
@@ -424,13 +430,13 @@ bool RayCaster::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_cubeMap->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_HALVED_CUBE], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_CUBE_MAP], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Create UAV table
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_grid->GetUAV());
+		descriptorTable->SetDescriptors(0, 1, &m_volume->GetUAV());
 		X_RETURN(m_uavTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
@@ -499,7 +505,7 @@ void RayCaster::rayCast(const CommandList* pCommandList, uint32_t frameIndex)
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
-	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_HALVED_CUBE]);
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_CUBE_MAP]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);

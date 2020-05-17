@@ -16,8 +16,8 @@ public:
 	bool Init(uint32_t width, uint32_t height, XUSG::DescriptorTableCache::sptr descriptorTableCache,
 		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t gridSize);
 
-	bool LoadGridData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource>& uploaders);
-	void InitGridData(const XUSG::CommandList* pCommandList);
+	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource>& uploaders);
+	void InitVolumeData(const XUSG::CommandList* pCommandList);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
@@ -26,7 +26,7 @@ public:
 	void Render(const XUSG::CommandList* pCommandList, uint32_t frameIndex, bool splitLightPass = true);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
 
-	const XUSG::DescriptorTable& GetGridSRVTable(const XUSG::CommandList* pCommandList);
+	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
 	XUSG::ResourceBase& GetLightMap();
 
@@ -35,8 +35,8 @@ public:
 protected:
 	enum PipelineIndex : uint8_t
 	{
-		LOAD_GRID_DATA,
-		INIT_GRID_DATA,
+		LOAD_VOLUME_DATA,
+		INIT_VOLUME_DATA,
 		RAY_MARCH,
 		RAY_MARCH_L,
 		RAY_MARCH_V,
@@ -49,7 +49,7 @@ protected:
 	{
 		SRV_TABLE_FILE_SRC,
 		SRV_TABLE_LIGHT_MAP,
-		SRV_TABLE_HALVED_CUBE,
+		SRV_TABLE_CUBE_MAP,
 
 		NUM_SRV_TABLE
 	};
@@ -81,7 +81,7 @@ protected:
 	XUSG::DescriptorTable	m_samplerTable;
 
 	XUSG::ResourceBase::sptr	m_fileSrc;
-	XUSG::Texture3D::uptr		m_grid;
+	XUSG::Texture3D::uptr		m_volume;
 	XUSG::Texture2D::uptr		m_cubeMap;
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;

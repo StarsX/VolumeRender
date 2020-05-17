@@ -84,8 +84,7 @@ void VolumeRender::LoadPipeline()
 	}
 #endif
 
-	com_ptr<IDXGIFactory4> factory;
-	ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
+	ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&m_factory)));
 
 	DXGI_ADAPTER_DESC1 dxgiAdapterDesc;
 	com_ptr<IDXGIAdapter1> dxgiAdapter;
@@ -93,7 +92,7 @@ void VolumeRender::LoadPipeline()
 	for (auto i = 0u; hr == DXGI_ERROR_UNSUPPORTED; ++i)
 	{
 		dxgiAdapter = nullptr;
-		ThrowIfFailed(factory->EnumAdapters1(i, &dxgiAdapter));
+		ThrowIfFailed(m_factory->EnumAdapters1(i, &dxgiAdapter));
 		hr = D3D12CreateDevice(dxgiAdapter.get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device));
 	}
 
@@ -105,47 +104,18 @@ void VolumeRender::LoadPipeline()
 	// Create the command queue.
 	N_RETURN(m_device->GetCommandQueue(m_commandQueue, CommandListType::DIRECT, CommandQueueFlag::NONE), ThrowIfFailed(E_FAIL));
 
-	// Describe and create the swap chain.
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.BufferCount = FrameCount;
-	swapChainDesc.Width = m_width;
-	swapChainDesc.Height = m_height;
-	swapChainDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.SampleDesc.Count = 1;
+	// Create the swap chain.
+	CreateSwapchain();
 
-	com_ptr<IDXGISwapChain1> swapChain;
-	ThrowIfFailed(factory->CreateSwapChainForHwnd(
-		m_commandQueue.get(),		// Swap chain needs the queue so that it can force a flush on it.
-		Win32Application::GetHwnd(),
-		&swapChainDesc,
-		nullptr,
-		nullptr,
-		&swapChain
-	));
-
-	// This sample does not support fullscreen transitions.
-	ThrowIfFailed(factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
-
-	ThrowIfFailed(swapChain.As(&m_swapChain));
+	// Reset the index to the current back buffer.
 	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-	m_descriptorTableCache = DescriptorTableCache::MakeShared(m_device, L"DescriptorTableCache");
-
-	// Create frame resources.
-	// Create a RTV and a command allocator for each frame.
+	// Create a command allocator for each frame.
 	for (auto n = 0u; n < FrameCount; n++)
-	{
-		m_renderTargets[n] = RenderTarget::MakeUnique();
-		N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device, m_swapChain, n), ThrowIfFailed(E_FAIL));
 		N_RETURN(m_device->GetCommandAllocator(m_commandAllocators[n], CommandListType::DIRECT), ThrowIfFailed(E_FAIL));
-	}
 
-	// Create output views
-	m_depth = DepthStencil::MakeUnique();
-	m_depth->Create(m_device, m_width, m_height, Format::D24_UNORM_S8_UINT,
-		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false, L"Depth");
+	// Create descriptor table cache.
+	m_descriptorTableCache = DescriptorTableCache::MakeShared(m_device, L"DescriptorTableCache");
 }
 
 // Load the sample assets.
@@ -174,9 +144,9 @@ void VolumeRender::LoadAssets()
 		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_numParticles, m_particleSize))
 		ThrowIfFailed(E_FAIL);
 
-	if (m_volumeFile.empty()) m_rayCaster->InitGridData(pCommandList);
-	else m_rayCaster->LoadGridData(pCommandList, m_volumeFile.c_str(), uploaders);
-	m_particleRenderer->GenerateParticles(pCommandList, m_rayCaster->GetGridSRVTable(pCommandList));
+	if (m_volumeFile.empty()) m_rayCaster->InitVolumeData(pCommandList);
+	else m_rayCaster->LoadVolumeData(pCommandList, m_volumeFile.c_str(), uploaders);
+	m_particleRenderer->GenerateParticles(pCommandList, m_rayCaster->GetVolumeSRVTable(pCommandList));
 
 	// Close the command list and execute it to begin the initial GPU setup.
 	ThrowIfFailed(pCommandList->Close());
@@ -211,6 +181,86 @@ void VolumeRender::LoadAssets()
 	const auto eyePt = XMLoadFloat3(&m_eyePt);
 	const auto view = XMMatrixLookAtLH(eyePt, focusPt, XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
 	XMStoreFloat4x4(&m_view, view);
+}
+
+void VolumeRender::CreateSwapchain()
+{
+	// Describe and create the swap chain.
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+	swapChainDesc.BufferCount = FrameCount;
+	swapChainDesc.Width = m_width;
+	swapChainDesc.Height = m_height;
+	swapChainDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.SampleDesc.Count = 1;
+
+	com_ptr<IDXGISwapChain1> swapChain;
+	ThrowIfFailed(m_factory->CreateSwapChainForHwnd(
+		m_commandQueue.get(),		// Swap chain needs the queue so that it can force a flush on it.
+		Win32Application::GetHwnd(),
+		&swapChainDesc,
+		nullptr,
+		nullptr,
+		&swapChain
+		));
+
+	// Store the swap chain.
+	ThrowIfFailed(swapChain.As(&m_swapChain));
+
+	// This class does not support exclusive full-screen mode and prevents DXGI from responding to the ALT+ENTER shortcut.
+	ThrowIfFailed(m_factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
+}
+
+void VolumeRender::CreateResources()
+{
+	// Obtain the back buffers for this window which will be the final render targets
+	// and create render target views for each of them.
+	for (auto n = 0u; n < FrameCount; ++n)
+	{
+		m_renderTargets[n] = RenderTarget::MakeUnique();
+		N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device, m_swapChain, n), ThrowIfFailed(E_FAIL));
+	}
+
+	// Create a DSV
+	m_depth = DepthStencil::MakeUnique();
+	m_depth->Create(m_device, m_width, m_height, Format::D24_UNORM_S8_UINT,
+		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false, L"Depth");
+
+	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
+	//m_viewport = Viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
+	//m_scissorRect = RectRange(0, 0, m_width, m_height);
+}
+
+void VolumeRender::ResizeAssets()
+{
+	ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset());
+	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex], nullptr));
+
+	// Scene
+	//vector<Resource> uploaders;
+	//N_RETURN(m_scene->ChangeWindowSize(m_commandList.get(), uploaders, *m_rtHDR, *m_depth), ThrowIfFailed(E_FAIL));
+
+	// Close the command list and execute it to begin the initial GPU setup.
+	ThrowIfFailed(m_commandList->Close());
+	m_commandQueue->SubmitCommandList(m_commandList.get());
+
+	// Create synchronization objects and wait until assets have been uploaded to the GPU.
+	{
+		N_RETURN(m_device->GetFence(m_fence, m_fenceValues[m_frameIndex]++, FenceFlag::NONE), ThrowIfFailed(E_FAIL));
+
+		// Create an event handle to use for frame synchronization.
+		m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+		if (m_fenceEvent == nullptr)
+		{
+			ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
+		}
+
+		// Wait for the command list to execute; we are reusing the same command 
+		// list in our main loop but for now, we just want to wait for setup to 
+		// complete before continuing.
+		WaitForGpu();
+	}
 }
 
 // Update frame-based values.
@@ -257,6 +307,71 @@ void VolumeRender::OnDestroy()
 	WaitForGpu();
 
 	CloseHandle(m_fenceEvent);
+}
+
+void VolumeRender::OnWindowSizeChanged(int width, int height)
+{
+	if (!Win32Application::GetHwnd())
+	{
+		throw std::exception("Call SetWindow with a valid Win32 window handle");
+	}
+
+	// Wait until all previous GPU work is complete.
+	WaitForGpu();
+
+	// Release resources that are tied to the swap chain and update fence values.
+	for (auto n = 0u; n < FrameCount; ++n)
+	{
+		m_renderTargets[n].reset();
+		m_fenceValues[n] = m_fenceValues[m_frameIndex];
+	}
+	//m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, Postprocess::RESIZABLE_POOL);
+	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL, Postprocess::RESIZABLE_POOL);
+
+	// Determine the render target size in pixels.
+	m_width = (max)(width, 1);
+	m_height = (max)(height, 1);
+
+	// If the swap chain already exists, resize it, otherwise create one.
+	if (m_swapChain)
+	{
+		// If the swap chain already exists, resize it.
+		const auto hr = m_swapChain->ResizeBuffers(FrameCount, m_width, m_height, DXGI_FORMAT_B8G8R8A8_UNORM, 0);
+
+		if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+		{
+#ifdef _DEBUG
+			char buff[64] = {};
+			sprintf_s(buff, "Device Lost on ResizeBuffers: Reason code 0x%08X\n", (hr == DXGI_ERROR_DEVICE_REMOVED) ? m_device->GetDeviceRemovedReason() : hr);
+			OutputDebugStringA(buff);
+#endif
+			// If the device was removed for any reason, a new device and swap chain will need to be created.
+			//HandleDeviceLost();
+
+			// Everything is set up now. Do not continue execution of this method. HandleDeviceLost will reenter this method 
+			// and correctly set up the new device.
+			return;
+		}
+		else
+		{
+			ThrowIfFailed(hr);
+		}
+	}
+	else CreateSwapchain();
+
+	// Reset the index to the current back buffer.
+	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+	// Create window size dependent resources.
+	CreateResources();
+	//ResizeAssets();
+
+	// Projection
+	{
+		const auto aspectRatio = m_width / static_cast<float>(m_height);
+		const auto proj = XMMatrixPerspectiveFovLH(g_FOVAngleY, aspectRatio, g_zNear, g_zFar);
+		XMStoreFloat4x4(&m_proj, proj);
+	}
 }
 
 // User hot-key interactions.
