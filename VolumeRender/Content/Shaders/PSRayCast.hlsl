@@ -16,7 +16,11 @@ struct PSIn
 //--------------------------------------------------------------------------------------
 // Texture
 //--------------------------------------------------------------------------------------
+#if _USE_PURE_ARRAY_
 Texture2DArray<float4> g_txCubeMap;
+#else
+TextureCube<float4> g_txCubeMap;
+#endif
 
 //--------------------------------------------------------------------------------------
 // Screen space to local space
@@ -63,6 +67,7 @@ uint ComputeCubePoint(inout float3 pos, float3 rayDir)
 	return hitPlane;
 }
 
+#if _USE_PURE_ARRAY_
 //--------------------------------------------------------------------------------------
 // Compute texcoord
 //--------------------------------------------------------------------------------------
@@ -96,6 +101,27 @@ float3 ComputeCubeTexcoord(float3 pos, uint hitPlane)
 
 	return tex;
 }
+#else
+float3 ClampEdge(float3 pos, float3 rayDir, float bound)
+{
+	[unroll]
+	for (uint i = 0; i < 3; ++i)
+	{
+		const float axis = pos[i];
+		//if (abs(axis) > bound)
+		//{
+		//	float3 norm = 0.0;
+		//	norm[i] = axis >= 0.0 ? 1.0 : -1.0;
+		//	if (dot(norm, rayDir) < 0.0)
+		//		pos[i] = axis >= 0.0 ? bound : -bound;
+		//}
+		if (abs(axis) > bound && axis * rayDir[i] < 0.0)
+			pos[i] = axis >= 0.0 ? bound : -bound;
+	}
+
+	return pos;
+}
+#endif
 
 //--------------------------------------------------------------------------------------
 // Pixel Shader
@@ -109,8 +135,15 @@ min16float4 main(PSIn input) : SV_TARGET
 	const uint hitPlane = ComputeCubePoint(pos, rayDir);
 	if (hitPlane > 2) discard;
 
+#if _USE_PURE_ARRAY_
 	const float3 tex = ComputeCubeTexcoord(pos, hitPlane);
+#else
+	float2 gridSize;
+	g_txCubeMap.GetDimensions(gridSize.x, gridSize.y);
+	const float3 tex = ClampEdge(pos, rayDir, 1.0 - 1.0 / gridSize.x);
+#endif
 	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, tex, 0.0);
+	
 	//if (result.w < 0.0) discard;
 
 	return min16float4(result.xyz, result.w);

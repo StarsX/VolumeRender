@@ -56,7 +56,7 @@ bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr
 
 	m_cubeMap = Texture2D::MakeUnique();
 	N_RETURN(m_cubeMap->Create(m_device, gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"CubeMap"), false);
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
 
 	m_lightGridSize = gridSize >> 1;
 	m_lightMap = Texture3D::MakeUnique();
