@@ -39,7 +39,7 @@ float3 TexcoordToLocalPos(float2 tex)
 //--------------------------------------------------------------------------------------
 // Compute end point of the ray on the cube surface
 //--------------------------------------------------------------------------------------
-uint ComputeCubePoint(inout float3 pos, float3 rayDir)
+uint ComputeRayHit(inout float3 pos, float3 rayDir)
 {
 	//float U = asfloat(0x7f800000);	// INF
 	float U = 3.402823466e+38;			// FLT_MAX
@@ -132,7 +132,7 @@ min16float4 main(PSIn input) : SV_TARGET
 	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI).xyz;
 	const float3 rayDir = normalize(pos - localSpaceEyePt);
 
-	const uint hitPlane = ComputeCubePoint(pos, rayDir);
+	const uint hitPlane = ComputeRayHit(pos, rayDir);
 	if (hitPlane > 2) discard;
 
 #if _USE_PURE_ARRAY_

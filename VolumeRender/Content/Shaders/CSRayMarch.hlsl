@@ -2,20 +2,15 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#ifndef _LIGHT_PASS_
 #include "RayMarch.hlsli"
+#endif
 
 //--------------------------------------------------------------------------------------
 // Constants
 //--------------------------------------------------------------------------------------
 static const min16float g_stepScale = g_maxDist / NUM_SAMPLES;
 static const min16float g_lightStepScale = g_maxDist / NUM_LIGHT_SAMPLES;
-
-//--------------------------------------------------------------------------------------
-// Texture
-//--------------------------------------------------------------------------------------
-#ifdef _LIGHT_PASS_
-Texture3D<float3> g_txLightMap;
-#endif
 
 //--------------------------------------------------------------------------------------
 // Unordered access texture
@@ -66,9 +61,9 @@ bool IsVisible(uint slice, float3 target, float3 localSpaceEyePt)
 //--------------------------------------------------------------------------------------
 // Compute start point of the ray
 //--------------------------------------------------------------------------------------
-bool ComputeStartPoint(inout float3 pos, float3 rayDir)
+bool ComputeRayOrigin(inout float3 rayOrigin, float3 rayDir)
 {
-	if (all(abs(pos) <= 1.0)) return true;
+	if (all(abs(rayOrigin) <= 1.0)) return true;
 
 	//float U = asfloat(0x7f800000);	// INF
 	float U = 3.402823466e+38;			// FLT_MAX
@@ -77,12 +72,12 @@ bool ComputeStartPoint(inout float3 pos, float3 rayDir)
 	[unroll]
 	for (uint i = 0; i < 3; ++i)
 	{
-		const float u = (-sign(rayDir[i]) - pos[i]) / rayDir[i];
+		const float u = (-sign(rayDir[i]) - rayOrigin[i]) / rayDir[i];
 		if (u < 0.0) continue;
 
 		const uint j = (i + 1) % 3, k = (i + 2) % 3;
-		if (abs(rayDir[j] * u + pos[j]) > 1.0) continue;
-		if (abs(rayDir[k] * u + pos[k]) > 1.0) continue;
+		if (abs(rayDir[j] * u + rayOrigin[j]) > 1.0) continue;
+		if (abs(rayDir[k] * u + rayOrigin[k]) > 1.0) continue;
 		if (u < U)
 		{
 			U = u;
@@ -90,10 +85,40 @@ bool ComputeStartPoint(inout float3 pos, float3 rayDir)
 		}
 	}
 
-	pos = clamp(rayDir * U + pos, -1.0, 1.0);
+	rayOrigin = clamp(rayDir * U + rayOrigin, -1.0, 1.0);
 
 	return isHit;
 }
+
+//--------------------------------------------------------------------------------------
+// Get light
+//--------------------------------------------------------------------------------------
+#ifndef _LIGHT_PASS_
+float3 GetLight(float3 pos, float3 step)
+{
+	min16float shadow = 1.0;	// Transmittance along light ray
+	
+	for (uint i = 0; i < NUM_LIGHT_SAMPLES; ++i)
+	{
+		// Update position along light ray
+		pos += step;
+		if (any(abs(pos) > 1.0)) break;
+		const float3 tex = pos * 0.5 + 0.5;
+
+		// Get a sample along light ray
+		const min16float density = GetSample(tex).w;
+
+		// Attenuate ray-throughput along light direction
+		shadow *= 1.0 - GetOpacity(density, g_lightStepScale);
+		if (shadow < ZERO_THRESHOLD) break;
+	}
+
+	const min16float3 lightColor = min16float3(g_lightColor.xyz * g_lightColor.w);
+	const min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
+	
+	return lightColor * shadow + ambient;
+}
+#endif
 
 //--------------------------------------------------------------------------------------
 // Compute Shader
@@ -101,16 +126,15 @@ bool ComputeStartPoint(inout float3 pos, float3 rayDir)
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	float3 pos = mul(g_eyePos, g_worldI).xyz;
-	//if (pos[DTid.z>> 1] == 0.0) return;
+	float3 rayOrigin = mul(g_eyePos, g_worldI).xyz;
+	//if (rayOrigin[DTid.z>> 1] == 0.0) return;
 
 	const float3 target = GetLocalPos(DTid.xy, DTid.z, g_rwCubeMap);
-	if (!IsVisible(DTid.z, target, pos)) return;
+	if (!IsVisible(DTid.z, target, rayOrigin)) return;
 
-	const float3 rayDir = normalize(target - pos);
-	if (!ComputeStartPoint(pos, rayDir)) return;
+	const float3 rayDir = normalize(target - rayOrigin);
+	if (!ComputeRayOrigin(rayOrigin, rayDir)) return;
 	
-	const float3 step = rayDir * g_stepScale;
 #ifdef _POINT_LIGHT_
 	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;
 #else
@@ -124,8 +148,10 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	// In-scattered radiance
 	min16float3 scatter = 0.0;
 
+	float t = 0.0;
 	for (uint i = 0; i < NUM_SAMPLES; ++i)
 	{
+		const float3 pos = rayOrigin + rayDir * t;
 		if (any(abs(pos) > 1.0)) break;
 		float3 tex = pos * 0.5 + 0.5;
 
@@ -141,33 +167,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 #endif
 
 			// Sample light
-			float3 lightPos = pos + lightStep;
-#ifdef _LIGHT_PASS_
-			tex = lightPos * 0.5 + 0.5;
-			const float3 light = g_txLightMap.SampleLevel(g_smpLinear, tex, 0.0);
-#else
-			min16float shadow = 1.0;	// Transmittance along light ray
-
-			for (uint j = 0; j < NUM_LIGHT_SAMPLES; ++j)
-			{
-				if (any(abs(lightPos) > 1.0)) break;
-				tex = lightPos * 0.5 + 0.5;
-
-				// Get a sample along light ray
-				const min16float density = GetSample(tex).w;
-
-				// Attenuate ray-throughput along light direction
-				shadow *= 1.0 - GetOpacity(density, g_lightStepScale);
-				if (shadow < ZERO_THRESHOLD) break;
-
-				// Update position along light ray
-				lightPos += lightStep;
-			}
-
-			const min16float3 lightColor = min16float3(g_lightColor.xyz * g_lightColor.w);
-			const min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
-			const min16float3 light = lightColor * shadow + ambient;
-#endif
+			const float3 light = GetLight(pos, lightStep);
 
 			// Accumulate color
 			color.w = GetOpacity(color.w, g_stepScale);
@@ -180,7 +180,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 			if (transm < ZERO_THRESHOLD) break;
 		}
 
-		pos += step;
+		t += max(1.5 * g_stepScale * t, g_stepScale);
 	}
 
 	g_rwCubeMap[DTid] = float4(scatter, 1.0 - transm);
