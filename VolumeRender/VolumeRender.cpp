@@ -169,18 +169,25 @@ void VolumeRender::LoadAssets()
 		WaitForGpu();
 	}
 
+	// Create window size dependent resources.
+	CreateResources();
+
 	// Projection
-	const auto aspectRatio = m_width / static_cast<float>(m_height);
-	const auto proj = XMMatrixPerspectiveFovLH(g_FOVAngleY, aspectRatio, g_zNear, g_zFar);
-	XMStoreFloat4x4(&m_proj, proj);
+	{
+		const auto aspectRatio = m_width / static_cast<float>(m_height);
+		const auto proj = XMMatrixPerspectiveFovLH(g_FOVAngleY, aspectRatio, g_zNear, g_zFar);
+		XMStoreFloat4x4(&m_proj, proj);
+	}
 
 	// View initialization
-	m_focusPt = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	m_eyePt = XMFLOAT3(4.0f, 16.0f, -40.0f);
-	const auto focusPt = XMLoadFloat3(&m_focusPt);
-	const auto eyePt = XMLoadFloat3(&m_eyePt);
-	const auto view = XMMatrixLookAtLH(eyePt, focusPt, XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
-	XMStoreFloat4x4(&m_view, view);
+	{
+		m_focusPt = XMFLOAT3(0.0f, 0.0f, 0.0f);
+		m_eyePt = XMFLOAT3(4.0f, 16.0f, -40.0f);
+		const auto focusPt = XMLoadFloat3(&m_focusPt);
+		const auto eyePt = XMLoadFloat3(&m_eyePt);
+		const auto view = XMMatrixLookAtLH(eyePt, focusPt, XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
+		XMStoreFloat4x4(&m_view, view);
+	}
 }
 
 void VolumeRender::CreateSwapchain()
@@ -230,37 +237,6 @@ void VolumeRender::CreateResources()
 	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
 	//m_viewport = Viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
 	//m_scissorRect = RectRange(0, 0, m_width, m_height);
-}
-
-void VolumeRender::ResizeAssets()
-{
-	ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset());
-	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex], nullptr));
-
-	// Scene
-	//vector<Resource> uploaders;
-	//N_RETURN(m_scene->ChangeWindowSize(m_commandList.get(), uploaders, *m_rtHDR, *m_depth), ThrowIfFailed(E_FAIL));
-
-	// Close the command list and execute it to begin the initial GPU setup.
-	ThrowIfFailed(m_commandList->Close());
-	m_commandQueue->SubmitCommandList(m_commandList.get());
-
-	// Create synchronization objects and wait until assets have been uploaded to the GPU.
-	{
-		N_RETURN(m_device->GetFence(m_fence, m_fenceValues[m_frameIndex]++, FenceFlag::NONE), ThrowIfFailed(E_FAIL));
-
-		// Create an event handle to use for frame synchronization.
-		m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-		if (m_fenceEvent == nullptr)
-		{
-			ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
-		}
-
-		// Wait for the command list to execute; we are reusing the same command 
-		// list in our main loop but for now, we just want to wait for setup to 
-		// complete before continuing.
-		WaitForGpu();
-	}
 }
 
 // Update frame-based values.
@@ -364,7 +340,6 @@ void VolumeRender::OnWindowSizeChanged(int width, int height)
 
 	// Create window size dependent resources.
 	CreateResources();
-	//ResizeAssets();
 
 	// Projection
 	{

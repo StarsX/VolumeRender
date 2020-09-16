@@ -94,7 +94,6 @@ private:
 	void LoadAssets();
 	void CreateSwapchain();
 	void CreateResources();
-	void ResizeAssets();
 	void PopulateCommandList();
 	void WaitForGpu();
 	void MoveToNextFrame();
