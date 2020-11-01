@@ -213,7 +213,7 @@ void VolumeRender::CreateSwapchain()
 		));
 
 	// Store the swap chain.
-	ThrowIfFailed(swapChain.As(&m_swapChain));
+	ThrowIfFailed(swapChain->QueryInterface(IID_PPV_ARGS(&m_swapChain)));
 
 	// This class does not support exclusive full-screen mode and prevents DXGI from responding to the ALT+ENTER shortcut.
 	ThrowIfFailed(m_factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
