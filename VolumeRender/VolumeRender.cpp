@@ -357,10 +357,10 @@ void VolumeRender::OnKeyUp(uint8_t key)
 	case VK_F1:
 		m_showFPS = !m_showFPS;
 		break;
-	case 'A':
+	case VK_LEFT:
 		g_renderMethod = static_cast<RenderMethod>((g_renderMethod + NUM_RENDER_METHOD - 1) % NUM_RENDER_METHOD);
 		break;
-	case 'S':
+	case VK_RIGHT:
 		g_renderMethod = static_cast<RenderMethod>((g_renderMethod + 1) % NUM_RENDER_METHOD);
 		break;
 	}
@@ -579,7 +579,7 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 		if (m_showFPS) windowText << setprecision(2) << fixed << fps;
 		else windowText << L"[F1]";
 
-		windowText << L"    [A][S] ";
+		windowText << L"    [\x2190][\x2192] ";
 		switch (g_renderMethod)
 		{
 		case RAY_MARCH_MERGED:
