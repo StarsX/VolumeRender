@@ -46,7 +46,7 @@ public:
 	virtual void ParseCommandLineArgs(wchar_t* argv[], int argc);
 
 private:
-	static const uint32_t FrameCount = RayCaster::FrameCount;
+	static const auto FrameCount = RayCaster::FrameCount;
 
 	XUSG::com_ptr<IDXGIFactory4> m_factory;
 

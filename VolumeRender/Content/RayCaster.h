@@ -30,7 +30,7 @@ public:
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
 	XUSG::ResourceBase& GetLightMap();
 
-	static const uint32_t FrameCount = 3;
+	static const uint8_t FrameCount = 3;
 
 protected:
 	enum PipelineIndex : uint8_t

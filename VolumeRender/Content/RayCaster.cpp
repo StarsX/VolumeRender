@@ -387,7 +387,7 @@ bool RayCaster::createDescriptorTables()
 	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 28);
 
 	// Create CBV tables
-	for (auto i = 0u; i < FrameCount; ++i)
+	for (uint8_t i = 0; i < FrameCount; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_cbPerObject->GetCBV(i));
