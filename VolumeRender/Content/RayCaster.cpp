@@ -166,7 +166,7 @@ void RayCaster::SetAmbient(const XMFLOAT3& color, float intensity)
 	m_ambient = XMFLOAT4(color.x, color.y, color.z, intensity);
 }
 
-void RayCaster::UpdateFrame(uint32_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
+void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
 {
 	// General matrices
 	const auto world = XMLoadFloat4x4(&m_volumeWorld);
@@ -185,7 +185,7 @@ void RayCaster::UpdateFrame(uint32_t frameIndex, CXMMATRIX viewProj, const XMFLO
 	pCbPerObject->Ambient = m_ambient;
 }
 
-void RayCaster::Render(const CommandList* pCommandList, uint32_t frameIndex, bool splitLightPass)
+void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass)
 {
 	if (splitLightPass)
 	{
@@ -197,7 +197,7 @@ void RayCaster::Render(const CommandList* pCommandList, uint32_t frameIndex, boo
 	rayCast(pCommandList, frameIndex);
 }
 
-void RayCaster::RayMarchL(const CommandList* pCommandList, uint32_t frameIndex)
+void RayCaster::RayMarchL(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barrier
 	ResourceBarrier barrier;
@@ -449,7 +449,7 @@ bool RayCaster::createDescriptorTables()
 	return true;
 }
 
-void RayCaster::rayMarch(const CommandList* pCommandList, uint32_t frameIndex)
+void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barrier;
@@ -469,7 +469,7 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint32_t frameIndex)
 	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 6);
 }
 
-void RayCaster::rayMarchV(const CommandList* pCommandList, uint32_t frameIndex)
+void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barriers[2];
@@ -490,7 +490,7 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint32_t frameIndex)
 	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 6);
 }
 
-void RayCaster::rayCast(const CommandList* pCommandList, uint32_t frameIndex)
+void RayCaster::rayCast(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barrier;

@@ -22,9 +22,9 @@ public:
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
-	void UpdateFrame(uint32_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList* pCommandList, uint32_t frameIndex, bool splitLightPass = true);
-	void RayMarchL(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
+	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
+	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass = true);
+	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
@@ -58,9 +58,9 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat);
 	bool createDescriptorTables();
 
-	void rayMarch(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
-	void rayMarchV(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
-	void rayCast(const XUSG::CommandList* pCommandList, uint32_t frameIndex);
+	void rayMarch(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayMarchV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::Device m_device;
 
