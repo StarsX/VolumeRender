@@ -65,7 +65,7 @@ bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr
 		1, MemoryType::DEFAULT, L"LightMap"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerObject->Create(m_device, sizeof(CBPerObject), FrameCount,
+	N_RETURN(m_cbPerObject->Create(m_device, sizeof(CBPerObject[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, L"CBPerObject"), false);
 
 	// Create pipelines

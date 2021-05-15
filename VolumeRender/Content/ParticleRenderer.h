@@ -17,12 +17,13 @@ public:
 		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t numParticles, float particleSize);
 
 	void GenerateParticles(const XUSG::CommandList* pCommandList, const XUSG::DescriptorTable& srvTable);
-	void UpdateFrame(DirectX::CXMMATRIX& view, DirectX::CXMMATRIX& proj, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList* pCommandList, XUSG::ResourceBase& lightMap,
-		const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& rtv,
-		const XUSG::Descriptor& dsv);
-	void ShowParticles(const XUSG::CommandList* pCommandList, XUSG::ResourceBase& lightMap,
-		const XUSG::DescriptorTable& srvTable);
+	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX& view, DirectX::CXMMATRIX& proj, const DirectX::XMFLOAT3& eyePt);
+	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, XUSG::ResourceBase& lightMap,
+		const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& rtv, const XUSG::Descriptor& dsv);
+	void ShowParticles(const XUSG::CommandList* pCommandList, uint8_t frameIndex,
+		XUSG::ResourceBase& lightMap, const XUSG::DescriptorTable& srvTable);
+
+	static const uint8_t FrameCount = 3;
 
 protected:
 	enum PipelineIndex : uint8_t
@@ -43,31 +44,13 @@ protected:
 		NUM_SRV_TABLE
 	};
 
-	struct CBPerObject
-	{
-		DirectX::XMFLOAT4X4 WorldView;
-		DirectX::XMFLOAT4X4 WorldViewI;
-		DirectX::XMFLOAT4X4 Proj;
-		DirectX::XMFLOAT3 EyePt;
-		float ParticleRadius;
-	};
-
-	struct ParticleInfo
-	{
-		DirectX::XMFLOAT3 Pos;
-		DirectX::XMFLOAT3 Velocity;
-		float LifeTime;
-	};
-
 	bool createPipelineLayouts();
 	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat);
 	bool createDescriptorTables();
 
-	void weightBlend(const XUSG::CommandList* pCommandList, XUSG::ResourceBase& lightMap,
-		const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& dsv);
+	void weightBlend(const XUSG::CommandList* pCommandList, uint8_t frameIndex,
+		XUSG::ResourceBase& lightMap, const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& dsv);
 	void resolveOIT(const XUSG::CommandList* pCommandList, const XUSG::Descriptor& rtv);
-
-	DirectX::XMMATRIX getWorldMatrix() const;
 
 	XUSG::Device m_device;
 
@@ -87,8 +70,9 @@ protected:
 	XUSG::StructuredBuffer::uptr	m_particles;
 	XUSG::RenderTarget::uptr		m_rtOITs[2];
 
+	XUSG::ConstantBuffer::uptr		m_cbPerObject;
+
 	float					m_particleSize;
 	uint32_t				m_numParticles;
 	DirectX::XMUINT2		m_viewport;
-	CBPerObject				m_cbPerObject;
 };

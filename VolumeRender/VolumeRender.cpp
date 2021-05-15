@@ -255,7 +255,7 @@ void VolumeRender::OnUpdate()
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
 	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
-	m_particleRenderer->UpdateFrame(view, proj, m_eyePt);
+	m_particleRenderer->UpdateFrame(m_frameIndex, view, proj, m_eyePt);
 }
 
 // Render the scene.
@@ -505,12 +505,12 @@ void VolumeRender::PopulateCommandList()
 		break;
 	case PARTICLE_OIT:
 		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
-		m_particleRenderer->Render(pCommandList, m_rayCaster->GetLightMap(),
+		m_particleRenderer->Render(pCommandList, m_frameIndex, m_rayCaster->GetLightMap(),
 			m_rayCaster->GetLightSRVTable(), m_renderTargets[m_frameIndex]->GetRTV(), m_depth->GetDSV());
 		break;
 	default:
 		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
-		m_particleRenderer->ShowParticles(pCommandList, m_rayCaster->GetLightMap(),
+		m_particleRenderer->ShowParticles(pCommandList, m_frameIndex, m_rayCaster->GetLightMap(),
 			m_rayCaster->GetLightSRVTable());
 	}
 	

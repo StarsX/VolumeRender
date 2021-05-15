@@ -8,6 +8,22 @@ using namespace std;
 using namespace DirectX;
 using namespace XUSG;
 
+struct CBPerObject
+{
+	DirectX::XMFLOAT4X4 WorldView;
+	DirectX::XMFLOAT4X4 WorldViewI;
+	DirectX::XMFLOAT4X4 Proj;
+	DirectX::XMFLOAT3 EyePt;
+	float ParticleRadius;
+};
+
+struct ParticleInfo
+{
+	DirectX::XMFLOAT3 Pos;
+	DirectX::XMFLOAT3 Velocity;
+	float LifeTime;
+};
+
 ParticleRenderer::ParticleRenderer(const Device& device) :
 	m_device(device),
 	m_particleSize(XM_PI),
@@ -43,6 +59,10 @@ bool ParticleRenderer::Init(uint32_t width, uint32_t height, DescriptorTableCach
 	N_RETURN(m_rtOITs[1]->Create(m_device, width, height, Format::R8_UNORM, 1,
 		ResourceFlag::NONE, 1, 1, clearTransm, false, L"OITTransmittance"), false);
 
+	m_cbPerObject = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbPerObject->Create(m_device, sizeof(CBPerObject[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, L"CBPerObject"), false);
+
 	// Create pipelines
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(rtFormat, dsFormat), false);
@@ -74,30 +94,31 @@ void ParticleRenderer::GenerateParticles(const CommandList* pCommandList, const 
 	pCommandList->Dispatch(DIV_UP(m_numParticles, 64), 1, 1);
 }
 
-void ParticleRenderer::UpdateFrame(CXMMATRIX& view, CXMMATRIX& proj, const XMFLOAT3& eyePt)
+void ParticleRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX& view, CXMMATRIX& proj, const XMFLOAT3& eyePt)
 {
 	// General matrices
-	const auto world = getWorldMatrix();
+	const auto world = XMMatrixScaling(10.0f, 10.0f, 10.0f);
 	const auto worldView = world * view;
 	const auto worldViewI = XMMatrixInverse(nullptr, worldView);
-	XMStoreFloat4x4(&m_cbPerObject.WorldView, XMMatrixTranspose(worldView));
-	XMStoreFloat4x4(&m_cbPerObject.WorldViewI, XMMatrixTranspose(worldViewI));
-	XMStoreFloat4x4(&m_cbPerObject.Proj, XMMatrixTranspose(proj));
-	m_cbPerObject.EyePt = eyePt;
+	const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
+	XMStoreFloat4x4(&pCbData->WorldView, XMMatrixTranspose(worldView));
+	XMStoreFloat4x4(&pCbData->WorldViewI, XMMatrixTranspose(worldViewI));
+	XMStoreFloat4x4(&pCbData->Proj, XMMatrixTranspose(proj));
+	pCbData->EyePt = eyePt;
 
 	const auto numParticlePerDim = powf(static_cast<float>(m_numParticles), 1.0f / 3.0f);
-	m_cbPerObject.ParticleRadius = m_particleSize / numParticlePerDim * XMVectorGetX(world.r[0]);
+	pCbData->ParticleRadius = m_particleSize / numParticlePerDim * XMVectorGetX(world.r[0]);
 }
 
-void ParticleRenderer::Render(const CommandList* pCommandList, ResourceBase& lightMap,
+void ParticleRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex, ResourceBase& lightMap,
 	const DescriptorTable& srvTable, const Descriptor& rtv, const Descriptor& dsv)
 {
-	weightBlend(pCommandList, lightMap, srvTable, dsv);
+	weightBlend(pCommandList, frameIndex, lightMap, srvTable, dsv);
 	resolveOIT(pCommandList, rtv);
 }
 
-void ParticleRenderer::ShowParticles(const CommandList* pCommandList, ResourceBase& lightMap,
-	const DescriptorTable& srvTable)
+void ParticleRenderer::ShowParticles(const CommandList* pCommandList, uint8_t frameIndex,
+	ResourceBase& lightMap, const DescriptorTable& srvTable)
 {
 	// Set barriers
 	ResourceBarrier barriers[2];
@@ -112,7 +133,7 @@ void ParticleRenderer::ShowParticles(const CommandList* pCommandList, ResourceBa
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
 
 	// Set descriptor tables
-	pCommandList->SetGraphics32BitConstants(0, SizeOfInUint32(m_cbPerObject), &m_cbPerObject);
+	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject->GetResource(), m_cbPerObject->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_PARTICLES]);
 	pCommandList->SetGraphicsDescriptorTable(2, srvTable);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
@@ -136,7 +157,7 @@ bool ParticleRenderer::createPipelineLayouts()
 	// Weight blending
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetConstants(0, SizeOfInUint32(CBPerObject), 0, 0, Shader::VS);
+		pipelineLayout->SetRootCBV(0, 0, 0, Shader::VS);
 		pipelineLayout->SetConstants(1, SizeOfInUint32(float), 0, 0, Shader::PS);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(3, DescriptorType::SRV, 1, 0);
@@ -162,7 +183,7 @@ bool ParticleRenderer::createPipelineLayouts()
 	// Show particles
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetConstants(0, SizeOfInUint32(CBPerObject), 0, 0, Shader::VS);
+		pipelineLayout->SetRootCBV(0, 0, 0, Shader::VS);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
@@ -287,8 +308,8 @@ bool ParticleRenderer::createDescriptorTables()
 	return true;
 }
 
-void ParticleRenderer::weightBlend(const CommandList* pCommandList, ResourceBase& lightMap,
-	const DescriptorTable& srvTable, const Descriptor& dsv)
+void ParticleRenderer::weightBlend(const CommandList* pCommandList, uint8_t frameIndex,
+	ResourceBase& lightMap, const DescriptorTable& srvTable, const Descriptor& dsv)
 {
 	// Set barriers
 	ResourceBarrier barriers[4];
@@ -315,7 +336,7 @@ void ParticleRenderer::weightBlend(const CommandList* pCommandList, ResourceBase
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
 
 	// Set descriptor tables
-	pCommandList->SetGraphics32BitConstants(0, SizeOfInUint32(m_cbPerObject), &m_cbPerObject);
+	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject->GetResource(), m_cbPerObject->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphics32BitConstants(1, SizeOfInUint32(float), &m_particleSize);
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_PARTICLES]);
 	pCommandList->SetGraphicsDescriptorTable(3, srvTable);
@@ -346,9 +367,4 @@ void ParticleRenderer::resolveOIT(const CommandList* pCommandList, const Descrip
 	pCommandList->SetGraphicsDescriptorTable(1, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);
-}
-
-XMMATRIX ParticleRenderer::getWorldMatrix() const
-{
-	return XMMatrixScaling(10.0f, 10.0f, 10.0f);
 }
