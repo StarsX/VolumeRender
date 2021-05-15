@@ -47,7 +47,7 @@ public:
 
 private:
 	static const auto FrameCount = RayCaster::FrameCount;
-	static_assert(FrameCount == ParticleRenderer::FrameCount, "");
+	static_assert(FrameCount == ParticleRenderer::FrameCount, "VolumeRender::FrameCount should be equal to ParticleRenderer::FrameCount");
 
 	XUSG::com_ptr<IDXGIFactory4> m_factory;
 
