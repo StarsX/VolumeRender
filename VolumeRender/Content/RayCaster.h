@@ -10,13 +10,13 @@
 class RayCaster
 {
 public:
-	RayCaster(const XUSG::Device& device);
+	RayCaster(const XUSG::Device::sptr& device);
 	virtual ~RayCaster();
 
-	bool Init(uint32_t width, uint32_t height, XUSG::DescriptorTableCache::sptr descriptorTableCache,
+	bool Init(uint32_t width, uint32_t height, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
 		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t gridSize);
 
-	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource>& uploaders);
+	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
 	void InitVolumeData(const XUSG::CommandList* pCommandList);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
@@ -28,7 +28,7 @@ public:
 
 	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
-	XUSG::ResourceBase& GetLightMap();
+	XUSG::Resource* GetLightMap() const;
 
 	static const uint8_t FrameCount = 3;
 
@@ -62,7 +62,7 @@ protected:
 	void rayMarchV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
-	XUSG::Device m_device;
+	XUSG::Device::sptr m_device;
 
 	XUSG::ShaderPool::uptr				m_shaderPool;
 	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
@@ -80,7 +80,7 @@ protected:
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
-	XUSG::ResourceBase::sptr	m_fileSrc;
+	XUSG::ShaderResource::sptr	m_fileSrc;
 	XUSG::Texture3D::uptr		m_volume;
 	XUSG::Texture2D::uptr		m_cubeMap;
 	XUSG::Texture3D::uptr		m_lightMap;

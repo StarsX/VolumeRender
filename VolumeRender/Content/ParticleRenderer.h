@@ -10,18 +10,18 @@
 class ParticleRenderer
 {
 public:
-	ParticleRenderer(const XUSG::Device& device);
+	ParticleRenderer(const XUSG::Device::sptr& device);
 	virtual ~ParticleRenderer();
 
-	bool Init(uint32_t width, uint32_t height, XUSG::DescriptorTableCache::sptr descriptorTableCache,
+	bool Init(uint32_t width, uint32_t height, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
 		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t numParticles, float particleSize);
 
 	void GenerateParticles(const XUSG::CommandList* pCommandList, const XUSG::DescriptorTable& srvTable);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX& view, DirectX::CXMMATRIX& proj, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, XUSG::ResourceBase& lightMap,
+	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, XUSG::Resource* pLightMap,
 		const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& rtv, const XUSG::Descriptor& dsv);
 	void ShowParticles(const XUSG::CommandList* pCommandList, uint8_t frameIndex,
-		XUSG::ResourceBase& lightMap, const XUSG::DescriptorTable& srvTable);
+		XUSG::Resource* pLightMap, const XUSG::DescriptorTable& srvTable);
 
 	static const uint8_t FrameCount = 3;
 
@@ -49,10 +49,10 @@ protected:
 	bool createDescriptorTables();
 
 	void weightBlend(const XUSG::CommandList* pCommandList, uint8_t frameIndex,
-		XUSG::ResourceBase& lightMap, const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& dsv);
+		XUSG::Resource* pLightMap, const XUSG::DescriptorTable& srvTable, const XUSG::Descriptor& dsv);
 	void resolveOIT(const XUSG::CommandList* pCommandList, const XUSG::Descriptor& rtv);
 
-	XUSG::Device m_device;
+	XUSG::Device::sptr m_device;
 
 	XUSG::ShaderPool::uptr				m_shaderPool;
 	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;

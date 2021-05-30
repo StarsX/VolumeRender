@@ -22,16 +22,16 @@ struct CBPerObject
 	XMFLOAT4 Ambient;
 };
 
-RayCaster::RayCaster(const Device& device) :
+RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
 	m_ambient(0.0f, 0.3f, 1.0f, 0.3f)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
-	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device);
-	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device);
-	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device);
+	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device.get());
+	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device.get());
+	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device.get());
 
 	XMStoreFloat4x4(&m_volumeWorld, XMMatrixScaling(10.0f, 10.0f, 10.0f));
 	m_lightMapWorld = m_volumeWorld;
@@ -41,7 +41,7 @@ RayCaster::~RayCaster()
 {
 }
 
-bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr descriptorTableCache,
+bool RayCaster::Init(uint32_t width, uint32_t height, const DescriptorTableCache::sptr& descriptorTableCache,
 	Format rtFormat, Format dsFormat, uint32_t gridSize)
 {
 	m_viewport = XMUINT2(width, height);
@@ -50,22 +50,22 @@ bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr
 
 	// Create resources
 	m_volume = Texture3D::MakeUnique();
-	N_RETURN(m_volume->Create(m_device, gridSize, gridSize, gridSize, Format::R16G16B16A16_FLOAT,
+	N_RETURN(m_volume->Create(m_device.get(), gridSize, gridSize, gridSize, Format::R16G16B16A16_FLOAT,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS, 1,
 		MemoryType::DEFAULT, L"Volume"), false);
 
 	m_cubeMap = Texture2D::MakeUnique();
-	N_RETURN(m_cubeMap->Create(m_device, gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
+	N_RETURN(m_cubeMap->Create(m_device.get(), gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
 
 	m_lightGridSize = gridSize >> 1;
 	m_lightMap = Texture3D::MakeUnique();
-	N_RETURN(m_lightMap->Create(m_device, m_lightGridSize, m_lightGridSize, m_lightGridSize,
+	N_RETURN(m_lightMap->Create(m_device.get(), m_lightGridSize, m_lightGridSize, m_lightGridSize,
 		Format::R11G11B10_FLOAT,ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS,
 		1, MemoryType::DEFAULT, L"LightMap"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerObject->Create(m_device, sizeof(CBPerObject[FrameCount]), FrameCount,
+	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, L"CBPerObject"), false);
 
 	// Create pipelines
@@ -76,22 +76,22 @@ bool RayCaster::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr
 	return true;
 }
 
-bool RayCaster::LoadVolumeData(CommandList* pCommandList, const wchar_t* fileName, vector<Resource>& uploaders)
+bool RayCaster::LoadVolumeData(CommandList* pCommandList, const wchar_t* fileName, vector<Resource::uptr>& uploaders)
 {
 	// Load input image
 	{
 		DDS::Loader textureLoader;
 		DDS::AlphaMode alphaMode;
 
-		uploaders.push_back(nullptr);
-		N_RETURN(textureLoader.CreateTextureFromFile(m_device, pCommandList, fileName,
-			8192, false, m_fileSrc, uploaders.back(), &alphaMode), false);
+		uploaders.emplace_back(Resource::MakeUnique());
+		N_RETURN(textureLoader.CreateTextureFromFile(m_device.get(), pCommandList, fileName,
+			8192, false, m_fileSrc, uploaders.back().get(), &alphaMode), false);
 	}
 
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_fileSrc->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_FILE_SRC], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_FILE_SRC], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	ResourceBarrier barrier;
@@ -232,9 +232,9 @@ const DescriptorTable& RayCaster::GetLightSRVTable() const
 	return m_srvTables[SRV_TABLE_LIGHT_MAP];
 }
 
-ResourceBase& RayCaster::GetLightMap()
+Resource* RayCaster::GetLightMap() const
 {
-	return *m_lightMap;
+	return m_lightMap.get();
 }
 
 bool RayCaster::createPipelineLayouts()
@@ -245,7 +245,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(0, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[LOAD_VOLUME_DATA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[LOAD_VOLUME_DATA], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"LoadGridDataLayout"), false);
 	}
 
@@ -253,7 +253,7 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		X_RETURN(m_pipelineLayouts[INIT_VOLUME_DATA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[INIT_VOLUME_DATA], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"InitGridDataLayout"), false);
 	}
 
@@ -264,7 +264,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayMarchingLayout"), false);
 	}
 
@@ -275,7 +275,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[RAY_MARCH_L], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[RAY_MARCH_L], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"LightSpaceRayMarchingLayout"), false);
 	}
 
@@ -286,7 +286,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceRayMarchingLayout"), false);
 	}
 
@@ -299,7 +299,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[RAY_CAST], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayCastingLayout"), false);
 	}
 
@@ -319,7 +319,7 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[LOAD_VOLUME_DATA]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[LOAD_VOLUME_DATA], state->GetPipeline(*m_computePipelineCache, L"InitGridData"), false);
+		X_RETURN(m_pipelines[LOAD_VOLUME_DATA], state->GetPipeline(m_computePipelineCache.get(), L"InitGridData"), false);
 	}
 
 	// Init grid data
@@ -329,7 +329,7 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[INIT_VOLUME_DATA]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[INIT_VOLUME_DATA], state->GetPipeline(*m_computePipelineCache, L"InitGridData"), false);
+		X_RETURN(m_pipelines[INIT_VOLUME_DATA], state->GetPipeline(m_computePipelineCache.get(), L"InitGridData"), false);
 	}
 
 	// Ray marching
@@ -339,7 +339,7 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[RAY_MARCH]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[RAY_MARCH], state->GetPipeline(*m_computePipelineCache, L"RayMarching"), false);
+		X_RETURN(m_pipelines[RAY_MARCH], state->GetPipeline(m_computePipelineCache.get(), L"RayMarching"), false);
 	}
 
 	// Light space ray marching
@@ -349,7 +349,7 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[RAY_MARCH_L]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[RAY_MARCH_L], state->GetPipeline(*m_computePipelineCache, L"LightSpaceRayMarching"), false);
+		X_RETURN(m_pipelines[RAY_MARCH_L], state->GetPipeline(m_computePipelineCache.get(), L"LightSpaceRayMarching"), false);
 	}
 
 	// View space ray marching
@@ -359,7 +359,7 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[RAY_MARCH_V]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[RAY_MARCH_V], state->GetPipeline(*m_computePipelineCache, L"ViewSpaceRayMarching"), false);
+		X_RETURN(m_pipelines[RAY_MARCH_V], state->GetPipeline(m_computePipelineCache.get(), L"ViewSpaceRayMarching"), false);
 	}
 
 	// Ray casting
@@ -372,11 +372,11 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, *m_graphicsPipelineCache);
-		//state->OMSetBlendState(Graphics::NON_PRE_MUL, *m_graphicsPipelineCache);
-		state->OMSetBlendState(Graphics::PREMULTIPLITED, *m_graphicsPipelineCache);
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		//state->OMSetBlendState(Graphics::NON_PRE_MUL, m_graphicsPipelineCache.get());
+		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
-		X_RETURN(m_pipelines[RAY_CAST], state->GetPipeline(*m_graphicsPipelineCache, L"RayCasting"), false);
+		X_RETURN(m_pipelines[RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
 	}
 
 	return true;
@@ -391,7 +391,7 @@ bool RayCaster::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_cbPerObject->GetCBV(i));
-		X_RETURN(m_cbvTables[i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_cbvTables[i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create UAV and SRV table
@@ -404,14 +404,14 @@ bool RayCaster::createDescriptorTables()
 			m_lightMap->GetSRV()
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_uavSrvTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_uavSrvTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create SRV table
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_lightMap->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_LIGHT_MAP], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_LIGHT_MAP], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create SRV and UAV table
@@ -423,28 +423,28 @@ bool RayCaster::createDescriptorTables()
 			m_lightMap->GetUAV()
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvUavTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvUavTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create SRV table
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_cubeMap->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_CUBE_MAP], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_CUBE_MAP], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create UAV table
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_volume->GetUAV());
-		X_RETURN(m_uavTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_uavTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create the sampler
 	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	const auto samplerLinearClamp = SamplerPreset::LINEAR_CLAMP;
-	descriptorTable->SetSamplers(0, 1, &samplerLinearClamp, *m_descriptorTableCache);
-	X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(*m_descriptorTableCache), false);
+	descriptorTable->SetSamplers(0, 1, &samplerLinearClamp, m_descriptorTableCache.get());
+	X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(m_descriptorTableCache.get()), false);
 
 	return true;
 }

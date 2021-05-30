@@ -24,22 +24,22 @@ struct ParticleInfo
 	float LifeTime;
 };
 
-ParticleRenderer::ParticleRenderer(const Device& device) :
+ParticleRenderer::ParticleRenderer(const Device::sptr& device) :
 	m_device(device),
 	m_particleSize(XM_PI),
 	m_numParticles(0)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
-	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device);
-	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device);
-	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device);
+	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device.get());
+	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device.get());
+	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device.get());
 }
 
 ParticleRenderer::~ParticleRenderer()
 {
 }
 
-bool ParticleRenderer::Init(uint32_t width, uint32_t height, DescriptorTableCache::sptr descriptorTableCache,
+bool ParticleRenderer::Init(uint32_t width, uint32_t height, const DescriptorTableCache::sptr& descriptorTableCache,
 	Format rtFormat, Format dsFormat, uint32_t numParticles, float particleSize)
 {
 	m_viewport = XMUINT2(width, height);
@@ -49,18 +49,18 @@ bool ParticleRenderer::Init(uint32_t width, uint32_t height, DescriptorTableCach
 
 	// Create resources
 	m_particles = StructuredBuffer::MakeUnique();
-	N_RETURN(m_particles->Create(m_device, numParticles, sizeof(float[8]), ResourceFlag::ALLOW_UNORDERED_ACCESS,
+	N_RETURN(m_particles->Create(m_device.get(), numParticles, sizeof(float[8]), ResourceFlag::ALLOW_UNORDERED_ACCESS,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, L"Particles"), false);
 
 	const float clearTransm[4] = { 1.0f };
 	for (auto& rtOIT : m_rtOITs) rtOIT = RenderTarget::MakeUnique();
-	N_RETURN(m_rtOITs[0]->Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
+	N_RETURN(m_rtOITs[0]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::NONE, 1, 1, nullptr, false, L"OITColor"), false);
-	N_RETURN(m_rtOITs[1]->Create(m_device, width, height, Format::R8_UNORM, 1,
+	N_RETURN(m_rtOITs[1]->Create(m_device.get(), width, height, Format::R8_UNORM, 1,
 		ResourceFlag::NONE, 1, 1, clearTransm, false, L"OITTransmittance"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerObject->Create(m_device, sizeof(CBPerObject[FrameCount]), FrameCount,
+	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, L"CBPerObject"), false);
 
 	// Create pipelines
@@ -110,20 +110,20 @@ void ParticleRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX& view, CXMMATRI
 	pCbData->ParticleRadius = m_particleSize / numParticlePerDim * XMVectorGetX(world.r[0]);
 }
 
-void ParticleRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex, ResourceBase& lightMap,
+void ParticleRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex, Resource* pLightMap,
 	const DescriptorTable& srvTable, const Descriptor& rtv, const Descriptor& dsv)
 {
-	weightBlend(pCommandList, frameIndex, lightMap, srvTable, dsv);
+	weightBlend(pCommandList, frameIndex, pLightMap, srvTable, dsv);
 	resolveOIT(pCommandList, rtv);
 }
 
 void ParticleRenderer::ShowParticles(const CommandList* pCommandList, uint8_t frameIndex,
-	ResourceBase& lightMap, const DescriptorTable& srvTable)
+	Resource* pLightMap, const DescriptorTable& srvTable)
 {
 	// Set barriers
 	ResourceBarrier barriers[2];
 	auto numBarriers = m_particles->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
-	numBarriers = lightMap.SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = pLightMap->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -133,7 +133,7 @@ void ParticleRenderer::ShowParticles(const CommandList* pCommandList, uint8_t fr
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
 
 	// Set descriptor tables
-	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject->GetResource(), m_cbPerObject->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject.get(), m_cbPerObject->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_PARTICLES]);
 	pCommandList->SetGraphicsDescriptorTable(2, srvTable);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
@@ -150,7 +150,7 @@ bool ParticleRenderer::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0,
 			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE | DescriptorFlag::DESCRIPTORS_VOLATILE);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[GEN_PARTICLES], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[GEN_PARTICLES], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ParticleGenLayout"), false);
 	}
 
@@ -165,7 +165,7 @@ bool ParticleRenderer::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(2, Shader::VS);
 		pipelineLayout->SetShaderStage(3, Shader::PS);
 		pipelineLayout->SetShaderStage(4, Shader::PS);
-		X_RETURN(m_pipelineLayouts[WEIGHT_BLEND], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[WEIGHT_BLEND], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L" WeightBlendingLayout"), false);
 	}
 
@@ -176,7 +176,7 @@ bool ParticleRenderer::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[RESOLVE_OIT], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[RESOLVE_OIT], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"OITResolvingLayout"), false);
 	}
 
@@ -190,7 +190,7 @@ bool ParticleRenderer::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(1, Shader::VS);
 		pipelineLayout->SetShaderStage(2, Shader::PS);
 		pipelineLayout->SetShaderStage(3, Shader::PS);
-		X_RETURN(m_pipelineLayouts[SHOW_PARTICLES], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[SHOW_PARTICLES], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ParticleShowLayout"), false);
 	}
 
@@ -210,7 +210,7 @@ bool ParticleRenderer::createPipelines(Format rtFormat, Format dsFormat)
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[GEN_PARTICLES]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[GEN_PARTICLES], state->GetPipeline(*m_computePipelineCache, L"ParticleGen"), false);
+		X_RETURN(m_pipelines[GEN_PARTICLES], state->GetPipeline(m_computePipelineCache.get(), L"ParticleGen"), false);
 
 	}
 
@@ -224,13 +224,13 @@ bool ParticleRenderer::createPipelines(Format rtFormat, Format dsFormat)
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state->DSSetState(Graphics::DEPTH_READ_LESS, *m_graphicsPipelineCache);
-		state->OMSetBlendState(Graphics::WEIGHTED_PER_RT, *m_graphicsPipelineCache);
+		state->DSSetState(Graphics::DEPTH_READ_LESS, m_graphicsPipelineCache.get());
+		state->OMSetBlendState(Graphics::WEIGHTED_PER_RT, m_graphicsPipelineCache.get());
 		state->OMSetNumRenderTargets(2);
 		state->OMSetRTVFormat(0, Format::R16G16B16A16_FLOAT);
 		state->OMSetRTVFormat(1, Format::R8_UNORM);
 		state->OMSetDSVFormat(dsFormat);
-		X_RETURN(m_pipelines[WEIGHT_BLEND], state->GetPipeline(*m_graphicsPipelineCache, L"WeightBlending"), false);
+		X_RETURN(m_pipelines[WEIGHT_BLEND], state->GetPipeline(m_graphicsPipelineCache.get(), L"WeightBlending"), false);
 	}
 
 	// OIT resolving
@@ -243,10 +243,10 @@ bool ParticleRenderer::createPipelines(Format rtFormat, Format dsFormat)
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, *m_graphicsPipelineCache);
-		state->OMSetBlendState(Graphics::NON_PRE_MUL, *m_graphicsPipelineCache);
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		state->OMSetBlendState(Graphics::NON_PRE_MUL, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
-		X_RETURN(m_pipelines[RESOLVE_OIT], state->GetPipeline(*m_graphicsPipelineCache, L"OITResolving"), false);
+		X_RETURN(m_pipelines[RESOLVE_OIT], state->GetPipeline(m_graphicsPipelineCache.get(), L"OITResolving"), false);
 	}
 
 	// Show particles
@@ -259,10 +259,10 @@ bool ParticleRenderer::createPipelines(Format rtFormat, Format dsFormat)
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, *m_graphicsPipelineCache);
-		state->OMSetBlendState(Graphics::NON_PRE_MUL, *m_graphicsPipelineCache);
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		state->OMSetBlendState(Graphics::NON_PRE_MUL, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
-		X_RETURN(m_pipelines[SHOW_PARTICLES], state->GetPipeline(*m_graphicsPipelineCache, L"ParticleShow"), false);
+		X_RETURN(m_pipelines[SHOW_PARTICLES], state->GetPipeline(m_graphicsPipelineCache.get(), L"ParticleShow"), false);
 	}
 
 	return true;
@@ -274,7 +274,7 @@ bool ParticleRenderer::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_particles->GetUAV());
-		X_RETURN(m_uavTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_uavTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create SRV tables
@@ -285,7 +285,7 @@ bool ParticleRenderer::createDescriptorTables()
 			m_particles->GetSRV()
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[SRV_TABLE_PARTICLES], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_PARTICLES], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	{
@@ -296,27 +296,27 @@ bool ParticleRenderer::createDescriptorTables()
 			m_rtOITs[1]->GetSRV()
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[SRV_TABLE_OIT], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_OIT], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create the sampler
 	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	const auto samplerLinearClamp = SamplerPreset::LINEAR_CLAMP;
-	descriptorTable->SetSamplers(0, 1, &samplerLinearClamp, *m_descriptorTableCache);
-	X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(*m_descriptorTableCache), false);
+	descriptorTable->SetSamplers(0, 1, &samplerLinearClamp, m_descriptorTableCache.get());
+	X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(m_descriptorTableCache.get()), false);
 
 	return true;
 }
 
 void ParticleRenderer::weightBlend(const CommandList* pCommandList, uint8_t frameIndex,
-	ResourceBase& lightMap, const DescriptorTable& srvTable, const Descriptor& dsv)
+	Resource* pLightMap, const DescriptorTable& srvTable, const Descriptor& dsv)
 {
 	// Set barriers
 	ResourceBarrier barriers[4];
 	auto numBarriers = m_rtOITs[0]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = m_rtOITs[1]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	numBarriers = m_particles->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	numBarriers = lightMap.SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = pLightMap->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set render targets
@@ -336,7 +336,7 @@ void ParticleRenderer::weightBlend(const CommandList* pCommandList, uint8_t fram
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
 
 	// Set descriptor tables
-	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject->GetResource(), m_cbPerObject->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject.get(), m_cbPerObject->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphics32BitConstants(1, SizeOfInUint32(float), &m_particleSize);
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_PARTICLES]);
 	pCommandList->SetGraphicsDescriptorTable(3, srvTable);
