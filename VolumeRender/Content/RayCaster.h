@@ -23,7 +23,7 @@ public:
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass = true);
+	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass, bool normalRayMarch = false);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
@@ -41,6 +41,7 @@ protected:
 		RAY_MARCH_L,
 		RAY_MARCH_V,
 		RAY_CAST,
+		VISUALIZE,
 
 		NUM_PIPELINE
 	};
@@ -61,6 +62,7 @@ protected:
 	void rayMarch(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayMarchV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void normalRayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::Device::sptr m_device;
 
@@ -79,6 +81,7 @@ protected:
 	XUSG::DescriptorTable	m_srvTables[NUM_SRV_TABLE];
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
+	XUSG::DescriptorTable	m_normalTable;
 
 	XUSG::ShaderResource::sptr	m_fileSrc;
 	XUSG::Texture3D::uptr		m_volume;
