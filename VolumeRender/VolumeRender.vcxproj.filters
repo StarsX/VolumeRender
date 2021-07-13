@@ -159,5 +159,8 @@
     <FxCompile Include="Content\Shaders\PSDirectRayCast.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
+    <FxCompile Include="Content\Shaders\PSDirectRayCastV.hlsl">
+      <Filter>Shaders\RayCaster</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

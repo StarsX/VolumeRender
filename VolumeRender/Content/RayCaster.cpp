@@ -186,25 +186,37 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 }
 
 
-void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass, bool normalRayMarch)
+void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass, bool direactRayMarch)
 {
-	if (normalRayMarch)
+	if (direactRayMarch)
 	{
-		DirectRayCast(pCommandList, frameIndex);
-		return;
-	}
+		if (splitLightPass)
+		{
+			RayMarchL(pCommandList, frameIndex);
+			DirectRayCastV(pCommandList, frameIndex);
 
-	if (splitLightPass)
-	{
-		RayMarchL(pCommandList, frameIndex);
-		rayMarchV(pCommandList, frameIndex);
-
+		}
+		else
+		{
+			DirectRayCast(pCommandList, frameIndex);
+		}
 	}
 	else
 	{
-		rayMarch(pCommandList, frameIndex);
+		if (splitLightPass)
+		{
+			RayMarchL(pCommandList, frameIndex);
+			rayMarchV(pCommandList, frameIndex);
+
+		}
+		else
+		{
+			rayMarch(pCommandList, frameIndex);
+		}
+		rayCast(pCommandList, frameIndex);
 	}
-	rayCast(pCommandList, frameIndex);
+
+	
 
 }
 
@@ -314,7 +326,7 @@ bool RayCaster::createPipelineLayouts()
 			PipelineLayoutFlag::NONE, L"RayCastingLayout"), false);
 	}
 	{
-		//Normal Ray casting
+		//Direct Ray casting
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
@@ -323,7 +335,20 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
-			PipelineLayoutFlag::NONE, L"NormalRayCastingLayout"), false);
+			PipelineLayoutFlag::NONE, L"DirectRayCastingLayout"), false);
+	}
+
+	{
+		//View Space direct Ray casting
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
+		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+			PipelineLayoutFlag::NONE, L"ViewSpaceDirectRayCastingLayout"), false);
 	}
 	return true;
 }
@@ -401,7 +426,7 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		X_RETURN(m_pipelines[RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
 	}
 	{
-		//Normal Ray casting
+		//Direct Ray casting
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSDirectRayCast.cso"), false);
 
@@ -414,6 +439,22 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
 		X_RETURN(m_pipelines[DIRECT_RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"DirectRayCasting"), false);
+	}
+
+	{
+		//View space direct Ray casting 
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSDirectRayCastV.cso"), false);
+
+		const auto state = Graphics::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST_V]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
+		state->OMSetRTVFormats(&rtFormat, 1);
+		X_RETURN(m_pipelines[DIRECT_RAY_CAST_V], state->GetPipeline(m_graphicsPipelineCache.get(), L"ViewSpaceDirectRayCasting"), false);
 	}
 	return true;
 }
@@ -471,7 +512,7 @@ bool RayCaster::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_volume->GetSRV());
-		X_RETURN(m_normalTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		X_RETURN(m_directTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 	// Create UAV table
 	{
@@ -550,6 +591,7 @@ void RayCaster::rayCast(const CommandList* pCommandList, uint8_t frameIndex)
 
 	pCommandList->Draw(3, 1, 0, 0);
 }
+
 void RayCaster::DirectRayCast(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set pipeline state
@@ -560,7 +602,28 @@ void RayCaster::DirectRayCast(const CommandList* pCommandList, uint8_t frameInde
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
-	pCommandList->SetGraphicsDescriptorTable(1, m_normalTable);
+	pCommandList->SetGraphicsDescriptorTable(1, m_directTable);
+	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
+
+	pCommandList->Draw(3, 1, 0, 0);
+}
+
+void RayCaster::DirectRayCastV(const CommandList* pCommandList, uint8_t frameIndex)
+{
+	// Set barriers
+	ResourceBarrier barriers;
+	auto numBarriers = m_lightMap->SetBarrier(&barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	pCommandList->Barrier(numBarriers,&barriers);
+
+	// Set pipeline state
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST_V]);
+	pCommandList->SetPipelineState(m_pipelines[DIRECT_RAY_CAST_V]);
+
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+
+	// Set descriptor tables
+	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvUavTable);
 	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);

@@ -1,7 +1,9 @@
 //--------------------------------------------------------------------------------------
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
+#ifndef _LIGHT_PASS_
 #include "RayMarch.hlsli"
+#endif
 
 struct PSIn
 {
@@ -60,7 +62,7 @@ bool ComputeStartPoint(inout float3 pos, float3 rayDir)
 
 	return isHit;
 }
-
+#ifndef _LIGHT_PASS_
 float3 GetLight(float3 pos, float3 step)
 {
 	min16float shadow = 1.0;	// Transmittance along light ray
@@ -85,7 +87,7 @@ float3 GetLight(float3 pos, float3 step)
 
 	return lightColor * shadow + ambient;
 }
-
+#endif
 //--------------------------------------------------------------------------------------
 // Pixel Shader
 //--------------------------------------------------------------------------------------
