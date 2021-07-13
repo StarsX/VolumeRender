@@ -25,6 +25,7 @@ public:
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass, bool normalRayMarch = false);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void DirectRayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
@@ -41,7 +42,7 @@ protected:
 		RAY_MARCH_L,
 		RAY_MARCH_V,
 		RAY_CAST,
-		VISUALIZE,
+		DIRECT_RAY_CAST,
 
 		NUM_PIPELINE
 	};
@@ -62,7 +63,6 @@ protected:
 	void rayMarch(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayMarchV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void normalRayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::Device::sptr m_device;
 

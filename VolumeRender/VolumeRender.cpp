@@ -18,6 +18,7 @@ enum RenderMethod
 {
 	RAY_MARCH_MERGED,
 	RAY_MARCH_SPLITTED,
+	RAY_MARCH_NORMAL,
 	PARTICLE_OIT,
 	PARTICLE_SIMPLE,
 
@@ -492,7 +493,10 @@ void VolumeRender::PopulateCommandList()
 		m_rayCaster->Render(pCommandList, m_frameIndex, false);
 		break;
 	case RAY_MARCH_SPLITTED:
-		m_rayCaster->Render(pCommandList, m_frameIndex);
+		m_rayCaster->Render(pCommandList, m_frameIndex, true);
+		break;
+	case RAY_MARCH_NORMAL:
+		m_rayCaster->Render(pCommandList, m_frameIndex, true, true);
 		break;
 	case PARTICLE_OIT:
 		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
@@ -578,6 +582,9 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 			break;
 		case RAY_MARCH_SPLITTED:
 			windowText << L"Ray marching with splitted lighting pass";
+			break;
+		case RAY_MARCH_NORMAL:
+			windowText << L"Normal ray marching pass";
 			break;
 		case PARTICLE_OIT:
 			windowText << L"Particle rendering with weighted blended OIT";

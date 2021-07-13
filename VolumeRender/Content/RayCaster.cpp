@@ -190,7 +190,7 @@ void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool
 {
 	if (normalRayMarch)
 	{
-		normalRayCast(pCommandList, frameIndex);
+		DirectRayCast(pCommandList, frameIndex);
 		return;
 	}
 
@@ -322,7 +322,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[VISUALIZE], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"NormalRayCastingLayout"), false);
 	}
 	return true;
@@ -403,17 +403,17 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 	{
 		//Normal Ray casting
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"NormalPSRayCast.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSDirectRayCast.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
-		state->SetPipelineLayout(m_pipelineLayouts[VISUALIZE]);
+		state->SetPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST]);
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
 		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
-		X_RETURN(m_pipelines[VISUALIZE], state->GetPipeline(m_graphicsPipelineCache.get(), L"NormalRayCasting"), false);
+		X_RETURN(m_pipelines[DIRECT_RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"DirectRayCasting"), false);
 	}
 	return true;
 }
@@ -550,14 +550,11 @@ void RayCaster::rayCast(const CommandList* pCommandList, uint8_t frameIndex)
 
 	pCommandList->Draw(3, 1, 0, 0);
 }
-void RayCaster::normalRayCast(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::DirectRayCast(const CommandList* pCommandList, uint8_t frameIndex)
 {
-	ResourceBarrier barrier;
-	const auto numBarriers = m_cubeMap->SetBarrier(&barrier, ResourceState::PIXEL_SHADER_RESOURCE);
-	pCommandList->Barrier(numBarriers, &barrier);
 	// Set pipeline state
-	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[VISUALIZE]);
-	pCommandList->SetPipelineState(m_pipelines[VISUALIZE]);
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST]);
+	pCommandList->SetPipelineState(m_pipelines[DIRECT_RAY_CAST]);
 
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 
