@@ -61,7 +61,7 @@ bool ParticleRenderer::Init(uint32_t width, uint32_t height, const DescriptorTab
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"CBPerObject"), false);
+		nullptr, MemoryType::UPLOAD, L"ParticleRenderer.CBPerObject"), false);
 
 	// Create pipelines
 	N_RETURN(createPipelineLayouts(), false);

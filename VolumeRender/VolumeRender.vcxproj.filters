@@ -81,6 +81,9 @@
     <ClInclude Include="Common\d3d12.h">
       <Filter>Common\Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Content\ObjectRenderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Common\DXFramework.cpp">
@@ -102,6 +105,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Content\ParticleRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Content\ObjectRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -161,6 +167,12 @@
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSDirectRayCastV.hlsl">
       <Filter>Shaders\RayCaster</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\VSBasePass.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\PSBasePass.hlsl">
+      <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>
