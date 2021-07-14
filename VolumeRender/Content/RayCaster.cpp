@@ -66,7 +66,7 @@ bool RayCaster::Init(uint32_t width, uint32_t height, const DescriptorTableCache
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"CBPerObject"), false);
+		nullptr, MemoryType::UPLOAD, L"RayCaster.CBPerObject"), false);
 
 	// Create pipelines
 	N_RETURN(createPipelineLayouts(), false);
@@ -185,7 +185,6 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 	pCbPerObject->Ambient = m_ambient;
 }
 
-
 void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass, bool direactRayMarch)
 {
 	if (direactRayMarch)
@@ -193,12 +192,12 @@ void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool
 		if (splitLightPass)
 		{
 			RayMarchL(pCommandList, frameIndex);
-			DirectRayCastV(pCommandList, frameIndex);
+			directRayCastV(pCommandList, frameIndex);
 
 		}
 		else
 		{
-			DirectRayCast(pCommandList, frameIndex);
+			directRayCast(pCommandList, frameIndex);
 		}
 	}
 	else
@@ -207,7 +206,6 @@ void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool
 		{
 			RayMarchL(pCommandList, frameIndex);
 			rayMarchV(pCommandList, frameIndex);
-
 		}
 		else
 		{
@@ -215,9 +213,6 @@ void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool
 		}
 		rayCast(pCommandList, frameIndex);
 	}
-
-	
-
 }
 
 void RayCaster::RayMarchL(const CommandList* pCommandList, uint8_t frameIndex)
@@ -325,8 +320,9 @@ bool RayCaster::createPipelineLayouts()
 		X_RETURN(m_pipelineLayouts[RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayCastingLayout"), false);
 	}
+
+	// Direct ray casting
 	{
-		//Direct Ray casting
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
@@ -338,8 +334,8 @@ bool RayCaster::createPipelineLayouts()
 			PipelineLayoutFlag::NONE, L"DirectRayCastingLayout"), false);
 	}
 
+	// View space direct ray casting
 	{
-		//View Space direct Ray casting
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
@@ -350,6 +346,7 @@ bool RayCaster::createPipelineLayouts()
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceDirectRayCastingLayout"), false);
 	}
+
 	return true;
 }
 
@@ -592,7 +589,7 @@ void RayCaster::rayCast(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
-void RayCaster::DirectRayCast(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::directRayCast(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set pipeline state
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST]);
@@ -608,7 +605,7 @@ void RayCaster::DirectRayCast(const CommandList* pCommandList, uint8_t frameInde
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
-void RayCaster::DirectRayCastV(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::directRayCastV(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barriers;
