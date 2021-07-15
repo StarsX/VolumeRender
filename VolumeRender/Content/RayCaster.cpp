@@ -185,24 +185,14 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 	pCbPerObject->Ambient = m_ambient;
 }
 
-void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass, bool direactRayMarch)
+void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, uint8_t flags)
 {
-	if (direactRayMarch)
-	{
-		if (splitLightPass)
-		{
-			RayMarchL(pCommandList, frameIndex);
-			directRayCastV(pCommandList, frameIndex);
+	const bool cubemapRayMarch = flags & RAY_MARCH_CUBEMAP;
+	const bool separateLightPass = flags & SEPARATE_LIGHT_PASS;
 
-		}
-		else
-		{
-			directRayCast(pCommandList, frameIndex);
-		}
-	}
-	else
+	if (cubemapRayMarch)
 	{
-		if (splitLightPass)
+		if (separateLightPass)
 		{
 			RayMarchL(pCommandList, frameIndex);
 			rayMarchV(pCommandList, frameIndex);
@@ -212,6 +202,18 @@ void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, bool
 			rayMarch(pCommandList, frameIndex);
 		}
 		rayCast(pCommandList, frameIndex);
+	}
+	else
+	{
+		if (separateLightPass)
+		{
+			RayMarchL(pCommandList, frameIndex);
+			rayCastVDirect(pCommandList, frameIndex);
+		}
+		else
+		{
+			rayCastDirect(pCommandList, frameIndex);
+		}
 	}
 }
 
@@ -591,7 +593,7 @@ void RayCaster::rayCast(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
-void RayCaster::directRayCast(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set pipeline state
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST]);
@@ -607,7 +609,7 @@ void RayCaster::directRayCast(const CommandList* pCommandList, uint8_t frameInde
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
-void RayCaster::directRayCastV(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::rayCastVDirect(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barriers;

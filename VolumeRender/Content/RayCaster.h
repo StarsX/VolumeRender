@@ -10,23 +10,31 @@
 class RayCaster
 {
 public:
+	enum RenderFlags : uint8_t
+	{
+		RAY_MARCH_DIRECT	= 0,
+		RAY_MARCH_CUBEMAP	= (1 << 0),
+		SEPARATE_LIGHT_PASS	= (1 << 1),
+		OPTIMIZED = RAY_MARCH_CUBEMAP | SEPARATE_LIGHT_PASS
+	};
+
 	RayCaster(const XUSG::Device::sptr& device);
 	virtual ~RayCaster();
 
 	bool Init(uint32_t width, uint32_t height, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
 		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t gridSize);
-
 	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
+
 	void InitVolumeData(const XUSG::CommandList* pCommandList);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass, bool direactRayMarch = false);
+	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, uint8_t flags = OPTIMIZED);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void directRayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void directRayCastV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastVDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;

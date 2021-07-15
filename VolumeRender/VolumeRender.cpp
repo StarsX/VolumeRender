@@ -17,9 +17,9 @@ using namespace XUSG;
 enum RenderMethod
 {
 	RAY_MARCH_MERGED,
-	RAY_MARCH_SPLITTED,
+	RAY_MARCH_SEPARATE,
 	RAY_MARCH_DIRECT_MERGED,
-	RAY_MARCH_DIRECT_SPLITTED,
+	RAY_MARCH_DIRECT_SEPARATE,
 	PARTICLE_OIT,
 	PARTICLE_SIMPLE,
 
@@ -30,7 +30,7 @@ const float g_FOVAngleY = XM_PIDIV4;
 const float g_zNear = 1.0f;
 const float g_zFar = 1000.0f;
 
-RenderMethod g_renderMethod = RAY_MARCH_SPLITTED;
+RenderMethod g_renderMethod = RAY_MARCH_SEPARATE;
 const auto g_dsFormat = Format::D32_FLOAT;
 
 VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
@@ -503,16 +503,16 @@ void VolumeRender::PopulateCommandList()
 	switch (g_renderMethod)
 	{
 	case RAY_MARCH_MERGED:
-		m_rayCaster->Render(pCommandList, m_frameIndex, false);
+		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::RAY_MARCH_CUBEMAP);
 		break;
-	case RAY_MARCH_SPLITTED:
-		m_rayCaster->Render(pCommandList, m_frameIndex, true);
+	case RAY_MARCH_SEPARATE:
+		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::OPTIMIZED);
 		break;
 	case RAY_MARCH_DIRECT_MERGED:
-		m_rayCaster->Render(pCommandList, m_frameIndex, false, true);
+		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::RAY_MARCH_DIRECT);
 		break;
-	case RAY_MARCH_DIRECT_SPLITTED:
-		m_rayCaster->Render(pCommandList, m_frameIndex, true, true);
+	case RAY_MARCH_DIRECT_SEPARATE:
+		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::SEPARATE_LIGHT_PASS);
 		break;
 	case PARTICLE_OIT:
 		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
@@ -594,16 +594,16 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 		switch (g_renderMethod)
 		{
 		case RAY_MARCH_MERGED:
-			windowText << L"Ray marching without splitted lighting pass";
+			windowText << L"Cubemap-space ray marching without separate lighting pass";
 			break;
-		case RAY_MARCH_SPLITTED:
-			windowText << L"Ray marching with splitted lighting pass";
+		case RAY_MARCH_SEPARATE:
+			windowText << L"Cubemap-space ray marching with separate lighting pass";
 			break;
 		case RAY_MARCH_DIRECT_MERGED:
-			windowText << L"Direct ray marching pass without splitted lighting pass";
+			windowText << L"Direct screen-space ray marching without separate lighting pass";
 			break;
-		case RAY_MARCH_DIRECT_SPLITTED:
-			windowText << L"Direct ray marching pass with splitted lighting pass";
+		case RAY_MARCH_DIRECT_SEPARATE:
+			windowText << L"Direct screen-space ray marching with separate lighting pass";
 			break;
 		case PARTICLE_OIT:
 			windowText << L"Particle rendering with weighted blended OIT";
