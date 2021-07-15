@@ -422,8 +422,9 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		state->OMSetRTVFormats(&rtFormat, 1);
 		X_RETURN(m_pipelines[RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
 	}
+
+	// Direct Ray casting
 	{
-		//Direct Ray casting
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSDirectRayCast.cso"), false);
 
@@ -438,8 +439,8 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		X_RETURN(m_pipelines[DIRECT_RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"DirectRayCasting"), false);
 	}
 
+	// View space direct Ray casting
 	{
-		//View space direct Ray casting 
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSDirectRayCastV.cso"), false);
 
@@ -453,6 +454,7 @@ bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
 		state->OMSetRTVFormats(&rtFormat, 1);
 		X_RETURN(m_pipelines[DIRECT_RAY_CAST_V], state->GetPipeline(m_graphicsPipelineCache.get(), L"ViewSpaceDirectRayCasting"), false);
 	}
+
 	return true;
 }
 

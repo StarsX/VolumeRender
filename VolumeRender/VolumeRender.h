@@ -13,6 +13,7 @@
 
 #include "StepTimer.h"
 #include "RayCaster.h"
+#include "ObjectRenderer.h"
 #include "ParticleRenderer.h"
 
 using namespace DirectX;
@@ -47,6 +48,7 @@ public:
 
 private:
 	static const auto FrameCount = RayCaster::FrameCount;
+	static_assert(FrameCount == ObjectRenderer::FrameCount, "VolumeRender::FrameCount should be equal to ObjectRenderer::FrameCount");
 	static_assert(FrameCount == ParticleRenderer::FrameCount, "VolumeRender::FrameCount should be equal to ParticleRenderer::FrameCount");
 
 	XUSG::com_ptr<IDXGIFactory4> m_factory;
@@ -61,10 +63,10 @@ private:
 	XUSG::RenderTarget::uptr	m_renderTargets[FrameCount];
 	XUSG::CommandList::uptr		m_commandList;
 
-	// App resources.
+	// App resources
 	std::unique_ptr<RayCaster>	m_rayCaster;
+	std::unique_ptr<ObjectRenderer> m_objectRenderer;
 	std::unique_ptr<ParticleRenderer> m_particleRenderer;
-	XUSG::DepthStencil::uptr	m_depth;
 	XMFLOAT4X4	m_proj;
 	XMFLOAT4X4	m_view;
 	XMFLOAT3	m_focusPt;
@@ -90,6 +92,8 @@ private:
 	uint32_t m_numParticles;
 	float m_particleSize;
 	std::wstring m_volumeFile;
+	std::string m_meshFileName;
+	XMFLOAT4 m_meshPosScale;
 
 	void LoadPipeline();
 	void LoadAssets();
