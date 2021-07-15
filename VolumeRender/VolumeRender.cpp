@@ -31,6 +31,7 @@ const float g_zNear = 1.0f;
 const float g_zFar = 1000.0f;
 
 RenderMethod g_renderMethod = RAY_MARCH_SPLITTED;
+const auto g_dsFormat = Format::D32_FLOAT;
 
 VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
@@ -41,7 +42,9 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_gridSize(128),
 	m_numParticles(1 << 14),
 	m_particleSize(2.5f),
-	m_volumeFile(L"")
+	m_volumeFile(L""),
+	m_meshFileName("Media/bunny.obj"),
+	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
 {
 #if defined (_DEBUG)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -141,13 +144,20 @@ void VolumeRender::LoadAssets()
 	m_rayCaster = make_unique<RayCaster>(m_device);
 	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
 	if (!m_rayCaster->Init(m_width, m_height, m_descriptorTableCache,
-		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_gridSize))
+		Format::B8G8R8A8_UNORM, g_dsFormat, m_gridSize))
+		ThrowIfFailed(E_FAIL);
+
+	m_objectRenderer = make_unique<ObjectRenderer>(m_device);
+	if (!m_objectRenderer) ThrowIfFailed(E_FAIL);
+	if (!m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
+		uploaders, m_meshFileName.c_str(), Format::B8G8R8A8_UNORM, g_dsFormat,
+		m_meshPosScale))
 		ThrowIfFailed(E_FAIL);
 
 	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
 	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_particleRenderer->Init(m_width, m_height, m_descriptorTableCache,
-		Format::B8G8R8A8_UNORM, Format::D24_UNORM_S8_UINT, m_numParticles, m_particleSize))
+		Format::B8G8R8A8_UNORM, g_dsFormat, m_numParticles, m_particleSize))
 		ThrowIfFailed(E_FAIL);
 
 	if (m_volumeFile.empty()) m_rayCaster->InitVolumeData(pCommandList);
@@ -218,10 +228,7 @@ void VolumeRender::CreateResources()
 		N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device.get(), m_swapChain.get(), n), ThrowIfFailed(E_FAIL));
 	}
 
-	// Create a DSV
-	m_depth = DepthStencil::MakeUnique();
-	m_depth->Create(m_device.get(), m_width, m_height, Format::D24_UNORM_S8_UINT,
-		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false, L"Depth");
+	N_RETURN(m_objectRenderer->SetViewport(m_width, m_height, g_dsFormat), ThrowIfFailed(E_FAIL));
 
 	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
 	//m_viewport = Viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
@@ -247,6 +254,7 @@ void VolumeRender::OnUpdate()
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
 	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
+	m_objectRenderer->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_particleRenderer->UpdateFrame(m_frameIndex, view, proj, m_eyePt);
 }
 
@@ -471,22 +479,26 @@ void VolumeRender::PopulateCommandList()
 	};
 	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
-	ResourceBarrier barriers[1];
+	ResourceBarrier barriers[2];
+	const auto pDepth = m_objectRenderer->GetDepthMap(ObjectRenderer::DEPTH_MAP);
 	auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
+	numBarriers = pDepth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target
 	const float clearColor[4] = { 0.2f, 0.2f, 0.2f, 0.0f };
 	pCommandList->ClearRenderTargetView(m_renderTargets[m_frameIndex]->GetRTV(), clearColor);
-	pCommandList->ClearDepthStencilView(m_depth->GetDSV(), ClearFlag::DEPTH, 1.0f);
+	pCommandList->ClearDepthStencilView(pDepth->GetDSV(), ClearFlag::DEPTH, 1.0f);
 
-	pCommandList->OMSetRenderTargets(1, &m_renderTargets[m_frameIndex]->GetRTV(), &m_depth->GetDSV());
+	pCommandList->OMSetRenderTargets(1, &m_renderTargets[m_frameIndex]->GetRTV(), &pDepth->GetDSV());
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
 	RectRange scissorRect(0, 0, m_width, m_height);
 	pCommandList->RSSetViewports(1, &viewport);
 	pCommandList->RSSetScissorRects(1, &scissorRect);
+
+	m_objectRenderer->Render(pCommandList, m_frameIndex);
 
 	switch (g_renderMethod)
 	{
@@ -505,7 +517,7 @@ void VolumeRender::PopulateCommandList()
 	case PARTICLE_OIT:
 		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
 		m_particleRenderer->Render(pCommandList, m_frameIndex, m_rayCaster->GetLightMap(),
-			m_rayCaster->GetLightSRVTable(), m_renderTargets[m_frameIndex]->GetRTV(), m_depth->GetDSV());
+			m_rayCaster->GetLightSRVTable(), m_renderTargets[m_frameIndex]->GetRTV(), pDepth->GetDSV());
 		break;
 	default:
 		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);

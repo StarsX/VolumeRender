@@ -40,6 +40,9 @@
     <Filter Include="XUSG\Advanced">
       <UniqueIdentifier>{e63d709e-f1e3-402f-aea8-146b9080366c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="XUSG\Optional">
+      <UniqueIdentifier>{f0f25b24-b3cf-41e6-b367-1cab524f2301}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common\d3dx12.h">
@@ -84,6 +87,9 @@
     <ClInclude Include="Content\ObjectRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="XUSG\Optional\XUSGObjLoader.h">
+      <Filter>XUSG\Optional</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Common\DXFramework.cpp">
@@ -109,6 +115,9 @@
     </ClCompile>
     <ClCompile Include="Content\ObjectRenderer.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="XUSG\Optional\XUSGObjLoader.cpp">
+      <Filter>XUSG\Optional</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
