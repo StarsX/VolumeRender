@@ -41,12 +41,12 @@ RayCaster::~RayCaster()
 {
 }
 
-bool RayCaster::Init(uint32_t width, uint32_t height, const DescriptorTableCache::sptr& descriptorTableCache,
-	Format rtFormat, uint32_t gridSize)
+bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
+	Format rtFormat, uint32_t gridSize, const DepthStencil::uptr* depths)
 {
-	m_viewport = XMUINT2(width, height);
 	m_descriptorTableCache = descriptorTableCache;
 	m_gridSize = gridSize;
+	m_pDepths = depths;
 
 	// Create resources
 	m_volume = Texture3D::MakeUnique();
@@ -117,6 +117,13 @@ bool RayCaster::LoadVolumeData(CommandList* pCommandList, const wchar_t* fileNam
 	pCommandList->Dispatch(DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4));
 
 	return true;
+}
+
+bool RayCaster::SetDepthMaps(const DepthStencil::uptr* depths)
+{
+	m_pDepths = depths;
+
+	return createDescriptorTables();
 }
 
 void RayCaster::InitVolumeData(const CommandList* pCommandList)
@@ -283,7 +290,8 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
+		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayMarchingLayout"), false);
 	}
@@ -305,7 +313,8 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
+		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceRayMarchingLayout"), false);
 	}
@@ -328,10 +337,12 @@ bool RayCaster::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
+		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"DirectRayCastingLayout"), false);
 	}
@@ -341,9 +352,11 @@ bool RayCaster::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
+		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceDirectRayCastingLayout"), false);
@@ -510,11 +523,17 @@ bool RayCaster::createDescriptorTables()
 		X_RETURN(m_srvUavTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
-	// Create SRV table
+	// Create SRV tables
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_cubeMap->GetSRV());
 		X_RETURN(m_srvTables[SRV_TABLE_CUBE_MAP], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_pDepths[DEPTH_MAP]->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_DEPTH], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create UAV table
@@ -536,9 +555,10 @@ bool RayCaster::createDescriptorTables()
 void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barrier;
-	const auto numBarriers = m_cubeMap->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
-	pCommandList->Barrier(numBarriers, &barrier);
+	ResourceBarrier barriers[2];
+	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
+	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[RAY_MARCH]);
@@ -547,7 +567,8 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 	// Set descriptor tables
 	pCommandList->SetComputeDescriptorTable(0, m_cbvTables[frameIndex]);
 	pCommandList->SetComputeDescriptorTable(1, m_uavSrvTable);
-	pCommandList->SetComputeDescriptorTable(2, m_samplerTable);
+	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
+	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
 
 	// Dispatch halved cube
 	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 6);
@@ -556,8 +577,9 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[2];
+	ResourceBarrier barriers[3];
 	auto numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
 	numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
@@ -568,7 +590,8 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 	// Set descriptor tables
 	pCommandList->SetComputeDescriptorTable(0, m_cbvTables[frameIndex]);
 	pCommandList->SetComputeDescriptorTable(1, m_uavSrvTable);
-	pCommandList->SetComputeDescriptorTable(2, m_samplerTable);
+	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
+	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
 
 	// Dispatch halved cube
 	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 6);
@@ -597,6 +620,11 @@ void RayCaster::rayCast(const CommandList* pCommandList, uint8_t frameIndex)
 
 void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameIndex)
 {
+	// Set barriers
+	ResourceBarrier barrier;
+	const auto numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(&barrier, ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	pCommandList->Barrier(numBarriers, &barrier);
+
 	// Set pipeline state
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST]);
 	pCommandList->SetPipelineState(m_pipelines[DIRECT_RAY_CAST]);
@@ -606,7 +634,8 @@ void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameInde
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_VOLUME]);
-	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
+	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
+	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }
@@ -614,9 +643,10 @@ void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameInde
 void RayCaster::rayCastVDirect(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers;
-	auto numBarriers = m_lightMap->SetBarrier(&barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
-	pCommandList->Barrier(numBarriers,&barriers);
+	ResourceBarrier barriers[2];
+	auto numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST_V]);
@@ -627,7 +657,8 @@ void RayCaster::rayCastVDirect(const CommandList* pCommandList, uint8_t frameInd
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_VOLUME]);
-	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
+	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
+	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }

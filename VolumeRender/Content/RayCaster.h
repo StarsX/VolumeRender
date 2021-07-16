@@ -21,9 +21,10 @@ public:
 	RayCaster(const XUSG::Device::sptr& device);
 	virtual ~RayCaster();
 
-	bool Init(uint32_t width, uint32_t height, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
-		XUSG::Format rtFormat, uint32_t gridSize);
+	bool Init(const XUSG::DescriptorTableCache::sptr& descriptorTableCache, XUSG::Format rtFormat,
+		uint32_t gridSize, const XUSG::DepthStencil::uptr* depths);
 	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
+	bool SetDepthMaps(const XUSG::DepthStencil::uptr* depths);
 
 	void InitVolumeData(const XUSG::CommandList* pCommandList);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
@@ -63,8 +64,15 @@ protected:
 		SRV_TABLE_VOLUME,
 		SRV_TABLE_LIGHT_MAP,
 		SRV_TABLE_CUBE_MAP,
+		SRV_TABLE_DEPTH,
 
 		NUM_SRV_TABLE
+	};
+
+	enum DepthIndex : uint8_t
+	{
+		DEPTH_MAP,
+		SHADOW_MAP
 	};
 
 	bool createPipelineLayouts();
@@ -99,9 +107,10 @@ protected:
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 
+	const XUSG::DepthStencil::uptr* m_pDepths;
+
 	uint32_t				m_gridSize;
 	uint32_t				m_lightGridSize;
-	DirectX::XMUINT2		m_viewport;
 
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;

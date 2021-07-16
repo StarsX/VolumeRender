@@ -15,6 +15,7 @@ public:
 
 	bool Init(uint32_t width, uint32_t height, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
 		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t numParticles, float particleSize);
+	bool SetViewport(uint32_t width, uint32_t height);
 
 	void GenerateParticles(const XUSG::CommandList* pCommandList, const XUSG::DescriptorTable& srvTable);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX& view, DirectX::CXMMATRIX& proj, const DirectX::XMFLOAT3& eyePt);

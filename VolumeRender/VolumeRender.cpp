@@ -142,16 +142,16 @@ void VolumeRender::LoadAssets()
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
 	vector<Resource::uptr> uploaders(0);
-	m_rayCaster = make_unique<RayCaster>(m_device);
-	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
-	if (!m_rayCaster->Init(m_width, m_height, m_descriptorTableCache,
-		g_rtFormat, m_gridSize))
-		ThrowIfFailed(E_FAIL);
-
 	m_objectRenderer = make_unique<ObjectRenderer>(m_device);
 	if (!m_objectRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
 		uploaders, m_meshFileName.c_str(), g_rtFormat, g_dsFormat, m_meshPosScale))
+		ThrowIfFailed(E_FAIL);
+
+	m_rayCaster = make_unique<RayCaster>(m_device);
+	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
+	if (!m_rayCaster->Init(m_descriptorTableCache, g_rtFormat,
+		m_gridSize, m_objectRenderer->GetDepthMaps()))
 		ThrowIfFailed(E_FAIL);
 
 	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
@@ -229,6 +229,8 @@ void VolumeRender::CreateResources()
 	}
 
 	N_RETURN(m_objectRenderer->SetViewport(m_width, m_height, g_dsFormat), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_rayCaster->SetDepthMaps(m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_particleRenderer->SetViewport(m_width, m_height), ThrowIfFailed(E_FAIL));
 
 	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
 	//m_viewport = Viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
@@ -253,8 +255,8 @@ void VolumeRender::OnUpdate()
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
-	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_objectRenderer->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
+	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_particleRenderer->UpdateFrame(m_frameIndex, view, proj, m_eyePt);
 }
 
@@ -298,8 +300,8 @@ void VolumeRender::OnWindowSizeChanged(int width, int height)
 		m_renderTargets[n].reset();
 		m_fenceValues[n] = m_fenceValues[m_frameIndex];
 	}
-	//m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, Postprocess::RESIZABLE_POOL);
-	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL, Postprocess::RESIZABLE_POOL);
+	m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
+	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL, 0);
 
 	// Determine the render target size in pixels.
 	m_width = (max)(width, 1);

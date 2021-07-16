@@ -33,6 +33,7 @@ public:
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;
+	const XUSG::DepthStencil::uptr* GetDepthMaps() const;
 
 	static const uint8_t FrameCount = 3;
 

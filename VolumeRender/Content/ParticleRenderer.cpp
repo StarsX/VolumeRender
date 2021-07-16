@@ -42,7 +42,6 @@ ParticleRenderer::~ParticleRenderer()
 bool ParticleRenderer::Init(uint32_t width, uint32_t height, const DescriptorTableCache::sptr& descriptorTableCache,
 	Format rtFormat, Format dsFormat, uint32_t numParticles, float particleSize)
 {
-	m_viewport = XMUINT2(width, height);
 	m_descriptorTableCache = descriptorTableCache;
 	m_numParticles = numParticles;
 	m_particleSize = particleSize;
@@ -52,12 +51,7 @@ bool ParticleRenderer::Init(uint32_t width, uint32_t height, const DescriptorTab
 	N_RETURN(m_particles->Create(m_device.get(), numParticles, sizeof(float[8]), ResourceFlag::ALLOW_UNORDERED_ACCESS,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, L"Particles"), false);
 
-	const float clearTransm[4] = { 1.0f };
 	for (auto& rtOIT : m_rtOITs) rtOIT = RenderTarget::MakeUnique();
-	N_RETURN(m_rtOITs[0]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
-		ResourceFlag::NONE, 1, 1, nullptr, false, L"OITColor"), false);
-	N_RETURN(m_rtOITs[1]->Create(m_device.get(), width, height, Format::R8_UNORM, 1,
-		ResourceFlag::NONE, 1, 1, clearTransm, false, L"OITTransmittance"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
@@ -66,9 +60,24 @@ bool ParticleRenderer::Init(uint32_t width, uint32_t height, const DescriptorTab
 	// Create pipelines
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(rtFormat, dsFormat), false);
-	N_RETURN(createDescriptorTables(), false);
+
+	// Create window size-dependent resource
+	N_RETURN(SetViewport(width, height), false);
 
 	return true;
+}
+
+bool ParticleRenderer::SetViewport(uint32_t width, uint32_t height)
+{
+	m_viewport = XMUINT2(width, height);
+
+	const float clearTransm[4] = { 1.0f };
+	N_RETURN(m_rtOITs[0]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
+		ResourceFlag::NONE, 1, 1, nullptr, false, L"OITColor"), false);
+	N_RETURN(m_rtOITs[1]->Create(m_device.get(), width, height, Format::R8_UNORM, 1,
+		ResourceFlag::NONE, 1, 1, clearTransm, false, L"OITTransmittance"), false);
+
+	return createDescriptorTables();
 }
 
 void ParticleRenderer::GenerateParticles(const CommandList* pCommandList, const DescriptorTable& srvTable)

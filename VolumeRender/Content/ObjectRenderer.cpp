@@ -141,6 +141,11 @@ DepthStencil* ObjectRenderer::GetDepthMap(DepthIndex index) const
 	return m_depths[index].get();
 }
 
+const DepthStencil::uptr* ObjectRenderer::GetDepthMaps() const
+{
+	return m_depths;
+}
+
 bool ObjectRenderer::createVB(CommandList* pCommandList, uint32_t numVert,
 	uint32_t stride, const uint8_t* pData, vector<Resource::uptr>& uploaders)
 {
