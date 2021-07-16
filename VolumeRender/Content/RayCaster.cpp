@@ -42,7 +42,7 @@ RayCaster::~RayCaster()
 }
 
 bool RayCaster::Init(uint32_t width, uint32_t height, const DescriptorTableCache::sptr& descriptorTableCache,
-	Format rtFormat, Format dsFormat, uint32_t gridSize)
+	Format rtFormat, uint32_t gridSize)
 {
 	m_viewport = XMUINT2(width, height);
 	m_descriptorTableCache = descriptorTableCache;
@@ -70,7 +70,7 @@ bool RayCaster::Init(uint32_t width, uint32_t height, const DescriptorTableCache
 
 	// Create pipelines
 	N_RETURN(createPipelineLayouts(), false);
-	N_RETURN(createPipelines(rtFormat, dsFormat), false);
+	N_RETURN(createPipelines(rtFormat), false);
 	N_RETURN(createDescriptorTables(), false);
 
 	return true;
@@ -352,7 +352,7 @@ bool RayCaster::createPipelineLayouts()
 	return true;
 }
 
-bool RayCaster::createPipelines(Format rtFormat, Format dsFormat)
+bool RayCaster::createPipelines(Format rtFormat)
 {
 	auto vsIndex = 0u;
 	auto psIndex = 0u;
@@ -478,14 +478,20 @@ bool RayCaster::createDescriptorTables()
 		const Descriptor descriptors[] =
 		{
 			m_cubeMap->GetUAV(),
-			m_volume->GetSRV(),
-			m_lightMap->GetSRV()
+			//m_volume->GetSRV(),	// shared with m_srvTables[SRV_TABLE_VOLUME]
+			//m_lightMap->GetSRV()	// shared with m_srvTables[SRV_TABLE_LIGHT_MAP]
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
 		X_RETURN(m_uavSrvTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
-	// Create SRV table
+	// Create SRV tables
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_volume->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_VOLUME], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_lightMap->GetSRV());
@@ -510,11 +516,7 @@ bool RayCaster::createDescriptorTables()
 		descriptorTable->SetDescriptors(0, 1, &m_cubeMap->GetSRV());
 		X_RETURN(m_srvTables[SRV_TABLE_CUBE_MAP], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
-	{
-		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_volume->GetSRV());
-		X_RETURN(m_directTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
-	}
+
 	// Create UAV table
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
@@ -603,7 +605,7 @@ void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameInde
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
-	pCommandList->SetGraphicsDescriptorTable(1, m_directTable);
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_VOLUME]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);
@@ -624,7 +626,7 @@ void RayCaster::rayCastVDirect(const CommandList* pCommandList, uint8_t frameInd
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
-	pCommandList->SetGraphicsDescriptorTable(1, m_srvUavTable);
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_VOLUME]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);

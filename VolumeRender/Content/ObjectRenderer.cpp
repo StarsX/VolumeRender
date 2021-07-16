@@ -15,6 +15,14 @@ struct CBPerObject
 	XMFLOAT3X4 World;
 };
 
+struct CBPerFrame
+{
+	XMFLOAT4 EyePos;
+	XMFLOAT4 LightPos;
+	XMFLOAT4 LightColor;
+	XMFLOAT4 Ambient;
+};
+
 ObjectRenderer::ObjectRenderer(const Device::sptr& device) :
 	m_device(device),
 	m_shadowMapSize(1024),
@@ -54,6 +62,10 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBPerObject"), false);
 
+	m_cbPerFrame = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBPerFrame"), false);
+
 	// Create window size-dependent resource
 	N_RETURN(SetViewport(width, height, dsFormat), false);
 
@@ -75,14 +87,35 @@ bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format dsForma
 		ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Depth");
 }
 
+void ObjectRenderer::SetLight(const XMFLOAT3& pos, const XMFLOAT3& color, float intensity)
+{
+	m_lightPt = pos;
+	m_lightColor = XMFLOAT4(color.x, color.y, color.z, intensity);
+}
+
+void ObjectRenderer::SetAmbient(const XMFLOAT3& color, float intensity)
+{
+	m_ambient = XMFLOAT4(color.x, color.y, color.z, intensity);
+}
+
 void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
 {
-	const auto world = XMMatrixScaling(m_posScale.w, m_posScale.w, m_posScale.w) *
-		XMMatrixTranslation(m_posScale.x, m_posScale.y, m_posScale.z);
+	{
+		const auto world = XMMatrixScaling(m_posScale.w, m_posScale.w, m_posScale.w) *
+			XMMatrixTranslation(m_posScale.x, m_posScale.y, m_posScale.z);
 
-	const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
-	XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(world * viewProj));
-	XMStoreFloat3x4(&pCbData->World, world);
+		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
+		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(world * viewProj));
+		XMStoreFloat3x4(&pCbData->World, world);
+	}
+
+	{
+		const auto pCbData = reinterpret_cast<CBPerFrame*>(m_cbPerFrame->Map(frameIndex));
+		pCbData->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
+		pCbData->LightPos = XMFLOAT4(m_lightPt.x, m_lightPt.y, m_lightPt.z, 1.0f);
+		pCbData->LightColor = m_lightColor;
+		pCbData->Ambient = m_ambient;
+	}
 }
 
 void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
@@ -95,6 +128,7 @@ void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject.get(), m_cbPerObject->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsRootConstantBufferView(1, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
 
 	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
 	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
@@ -152,6 +186,7 @@ bool ObjectRenderer::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRootCBV(0, 0, 0, Shader::VS);
+		pipelineLayout->SetRootCBV(1, 0, 0, Shader::PS);
 		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}

@@ -74,6 +74,7 @@ protected:
 
 	XUSG::DepthStencil::uptr	m_depths[NUM_DEPTH];
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
+	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 
 	uint32_t				m_numIndices;
 	uint32_t				m_shadowMapSize;

@@ -22,7 +22,7 @@ public:
 	virtual ~RayCaster();
 
 	bool Init(uint32_t width, uint32_t height, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
-		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t gridSize);
+		XUSG::Format rtFormat, uint32_t gridSize);
 	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
 
 	void InitVolumeData(const XUSG::CommandList* pCommandList);
@@ -60,6 +60,7 @@ protected:
 	enum SrvTable : uint8_t
 	{
 		SRV_TABLE_FILE_SRC,
+		SRV_TABLE_VOLUME,
 		SRV_TABLE_LIGHT_MAP,
 		SRV_TABLE_CUBE_MAP,
 
@@ -67,7 +68,7 @@ protected:
 	};
 
 	bool createPipelineLayouts();
-	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat);
+	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
 	void rayMarch(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
@@ -91,7 +92,6 @@ protected:
 	XUSG::DescriptorTable	m_srvTables[NUM_SRV_TABLE];
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
-	XUSG::DescriptorTable	m_directTable;
 
 	XUSG::ShaderResource::sptr	m_fileSrc;
 	XUSG::Texture3D::uptr		m_volume;
