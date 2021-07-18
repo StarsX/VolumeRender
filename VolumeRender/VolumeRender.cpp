@@ -17,9 +17,9 @@ using namespace XUSG;
 enum RenderMethod
 {
 	RAY_MARCH_MERGED,
-	RAY_MARCH_SPLITTED,
+	RAY_MARCH_SEPARATE,
 	RAY_MARCH_DIRECT_MERGED,
-	RAY_MARCH_DIRECT_SPLITTED,
+	RAY_MARCH_DIRECT_SEPARATE,
 	PARTICLE_OIT,
 	PARTICLE_SIMPLE,
 
@@ -30,7 +30,8 @@ const float g_FOVAngleY = XM_PIDIV4;
 const float g_zNear = 1.0f;
 const float g_zFar = 1000.0f;
 
-RenderMethod g_renderMethod = RAY_MARCH_SPLITTED;
+RenderMethod g_renderMethod = RAY_MARCH_SEPARATE;
+const auto g_rtFormat = Format::B8G8R8A8_UNORM;
 const auto g_dsFormat = Format::D32_FLOAT;
 
 VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
@@ -44,7 +45,7 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_particleSize(2.5f),
 	m_volumeFile(L""),
 	m_meshFileName("Media/bunny.obj"),
-	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
+	m_meshPosScale(0.0f, -10.0f, 0.0f, 1.5f)
 {
 #if defined (_DEBUG)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -141,23 +142,22 @@ void VolumeRender::LoadAssets()
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
 	vector<Resource::uptr> uploaders(0);
-	m_rayCaster = make_unique<RayCaster>(m_device);
-	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
-	if (!m_rayCaster->Init(m_width, m_height, m_descriptorTableCache,
-		Format::B8G8R8A8_UNORM, g_dsFormat, m_gridSize))
-		ThrowIfFailed(E_FAIL);
-
 	m_objectRenderer = make_unique<ObjectRenderer>(m_device);
 	if (!m_objectRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
-		uploaders, m_meshFileName.c_str(), Format::B8G8R8A8_UNORM, g_dsFormat,
-		m_meshPosScale))
+		uploaders, m_meshFileName.c_str(), g_rtFormat, g_dsFormat, m_meshPosScale))
+		ThrowIfFailed(E_FAIL);
+
+	m_rayCaster = make_unique<RayCaster>(m_device);
+	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
+	if (!m_rayCaster->Init(m_descriptorTableCache, g_rtFormat,
+		m_gridSize, m_objectRenderer->GetDepthMaps()))
 		ThrowIfFailed(E_FAIL);
 
 	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
 	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_particleRenderer->Init(m_width, m_height, m_descriptorTableCache,
-		Format::B8G8R8A8_UNORM, g_dsFormat, m_numParticles, m_particleSize))
+		g_rtFormat, g_dsFormat, m_numParticles, m_particleSize))
 		ThrowIfFailed(E_FAIL);
 
 	if (m_volumeFile.empty()) m_rayCaster->InitVolumeData(pCommandList);
@@ -212,7 +212,7 @@ void VolumeRender::CreateSwapchain()
 	// Describe and create the swap chain.
 	m_swapChain = SwapChain::MakeUnique();
 	N_RETURN(m_swapChain->Create(m_factory.Get(), Win32Application::GetHwnd(), m_commandQueue.get(),
-		FrameCount, m_width, m_height, Format::B8G8R8A8_UNORM), ThrowIfFailed(E_FAIL));
+		FrameCount, m_width, m_height, g_rtFormat), ThrowIfFailed(E_FAIL));
 
 	// This class does not support exclusive full-screen mode and prevents DXGI from responding to the ALT+ENTER shortcut.
 	ThrowIfFailed(m_factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
@@ -229,6 +229,8 @@ void VolumeRender::CreateResources()
 	}
 
 	N_RETURN(m_objectRenderer->SetViewport(m_width, m_height, g_dsFormat), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_rayCaster->SetDepthMaps(m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_particleRenderer->SetViewport(m_width, m_height), ThrowIfFailed(E_FAIL));
 
 	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
 	//m_viewport = Viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
@@ -253,8 +255,8 @@ void VolumeRender::OnUpdate()
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
-	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_objectRenderer->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
+	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_particleRenderer->UpdateFrame(m_frameIndex, view, proj, m_eyePt);
 }
 
@@ -298,8 +300,8 @@ void VolumeRender::OnWindowSizeChanged(int width, int height)
 		m_renderTargets[n].reset();
 		m_fenceValues[n] = m_fenceValues[m_frameIndex];
 	}
-	//m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, Postprocess::RESIZABLE_POOL);
-	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL, Postprocess::RESIZABLE_POOL);
+	m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
+	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL, 0);
 
 	// Determine the render target size in pixels.
 	m_width = (max)(width, 1);
@@ -309,7 +311,7 @@ void VolumeRender::OnWindowSizeChanged(int width, int height)
 	if (m_swapChain)
 	{
 		// If the swap chain already exists, resize it.
-		const auto hr = m_swapChain->ResizeBuffers(FrameCount, m_width, m_height, Format::B8G8R8A8_UNORM, 0);
+		const auto hr = m_swapChain->ResizeBuffers(FrameCount, m_width, m_height, g_rtFormat, 0);
 
 		if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 		{
@@ -503,16 +505,16 @@ void VolumeRender::PopulateCommandList()
 	switch (g_renderMethod)
 	{
 	case RAY_MARCH_MERGED:
-		m_rayCaster->Render(pCommandList, m_frameIndex, false);
+		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::RAY_MARCH_CUBEMAP);
 		break;
-	case RAY_MARCH_SPLITTED:
-		m_rayCaster->Render(pCommandList, m_frameIndex, true);
+	case RAY_MARCH_SEPARATE:
+		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::OPTIMIZED);
 		break;
 	case RAY_MARCH_DIRECT_MERGED:
-		m_rayCaster->Render(pCommandList, m_frameIndex, false, true);
+		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::RAY_MARCH_DIRECT);
 		break;
-	case RAY_MARCH_DIRECT_SPLITTED:
-		m_rayCaster->Render(pCommandList, m_frameIndex, true, true);
+	case RAY_MARCH_DIRECT_SEPARATE:
+		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::SEPARATE_LIGHT_PASS);
 		break;
 	case PARTICLE_OIT:
 		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
@@ -594,16 +596,16 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 		switch (g_renderMethod)
 		{
 		case RAY_MARCH_MERGED:
-			windowText << L"Ray marching without splitted lighting pass";
+			windowText << L"Cubemap-space ray marching without separate lighting pass";
 			break;
-		case RAY_MARCH_SPLITTED:
-			windowText << L"Ray marching with splitted lighting pass";
+		case RAY_MARCH_SEPARATE:
+			windowText << L"Cubemap-space ray marching with separate lighting pass";
 			break;
 		case RAY_MARCH_DIRECT_MERGED:
-			windowText << L"Direct ray marching pass without splitted lighting pass";
+			windowText << L"Direct screen-space ray marching without separate lighting pass";
 			break;
-		case RAY_MARCH_DIRECT_SPLITTED:
-			windowText << L"Direct ray marching pass with splitted lighting pass";
+		case RAY_MARCH_DIRECT_SEPARATE:
+			windowText << L"Direct screen-space ray marching with separate lighting pass";
 			break;
 		case PARTICLE_OIT:
 			windowText << L"Particle rendering with weighted blended OIT";

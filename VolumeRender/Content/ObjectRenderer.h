@@ -27,10 +27,13 @@ public:
 		XUSG::Format dsFormat, const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
 	bool SetViewport(uint32_t width, uint32_t height, XUSG::Format dsFormat);
 
+	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
+	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;
+	const XUSG::DepthStencil::uptr* GetDepthMaps() const;
 
 	static const uint8_t FrameCount = 3;
 
@@ -72,6 +75,7 @@ protected:
 
 	XUSG::DepthStencil::uptr	m_depths[NUM_DEPTH];
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
+	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 
 	uint32_t				m_numIndices;
 	uint32_t				m_shadowMapSize;

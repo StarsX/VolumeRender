@@ -10,23 +10,32 @@
 class RayCaster
 {
 public:
+	enum RenderFlags : uint8_t
+	{
+		RAY_MARCH_DIRECT	= 0,
+		RAY_MARCH_CUBEMAP	= (1 << 0),
+		SEPARATE_LIGHT_PASS	= (1 << 1),
+		OPTIMIZED = RAY_MARCH_CUBEMAP | SEPARATE_LIGHT_PASS
+	};
+
 	RayCaster(const XUSG::Device::sptr& device);
 	virtual ~RayCaster();
 
-	bool Init(uint32_t width, uint32_t height, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
-		XUSG::Format rtFormat, XUSG::Format dsFormat, uint32_t gridSize);
-
+	bool Init(const XUSG::DescriptorTableCache::sptr& descriptorTableCache, XUSG::Format rtFormat,
+		uint32_t gridSize, const XUSG::DepthStencil::uptr* depths);
 	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
+	bool SetDepthMaps(const XUSG::DepthStencil::uptr* depths);
+
 	void InitVolumeData(const XUSG::CommandList* pCommandList);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool splitLightPass, bool direactRayMarch = false);
+	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, uint8_t flags = OPTIMIZED);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void directRayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void directRayCastV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastVDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
@@ -52,14 +61,22 @@ protected:
 	enum SrvTable : uint8_t
 	{
 		SRV_TABLE_FILE_SRC,
+		SRV_TABLE_VOLUME,
 		SRV_TABLE_LIGHT_MAP,
 		SRV_TABLE_CUBE_MAP,
+		SRV_TABLE_DEPTH,
 
 		NUM_SRV_TABLE
 	};
 
+	enum DepthIndex : uint8_t
+	{
+		DEPTH_MAP,
+		SHADOW_MAP
+	};
+
 	bool createPipelineLayouts();
-	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat);
+	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
 	void rayMarch(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
@@ -83,7 +100,6 @@ protected:
 	XUSG::DescriptorTable	m_srvTables[NUM_SRV_TABLE];
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
-	XUSG::DescriptorTable	m_directTable;
 
 	XUSG::ShaderResource::sptr	m_fileSrc;
 	XUSG::Texture3D::uptr		m_volume;
@@ -91,9 +107,10 @@ protected:
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 
+	const XUSG::DepthStencil::uptr* m_pDepths;
+
 	uint32_t				m_gridSize;
 	uint32_t				m_lightGridSize;
-	DirectX::XMUINT2		m_viewport;
 
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;
