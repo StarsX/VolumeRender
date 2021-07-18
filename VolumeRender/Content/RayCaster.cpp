@@ -14,6 +14,7 @@ using namespace XUSG;
 struct CBPerObject
 {
 	XMMATRIX WorldViewProjI;
+	XMMATRIX WorldViewProj;
 	XMMATRIX WorldI;
 	XMMATRIX LightMapWorld;
 	XMFLOAT4 EyePos;
@@ -181,6 +182,7 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 
 	// Screen space matrices
 	const auto pCbPerObject = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
+	pCbPerObject->WorldViewProj = XMMatrixTranspose(worldViewProj);
 	pCbPerObject->WorldViewProjI = XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj));
 	pCbPerObject->WorldI = XMMatrixTranspose(XMMatrixInverse(nullptr, world));
 

@@ -36,3 +36,16 @@ min16float GetOpacity(min16float density, min16float stepScale)
 {
 	return saturate(density * stepScale * ABSORPTION * 4.0);
 }
+
+//--------------------------------------------------------------------------------------
+// Get occluded end point
+//--------------------------------------------------------------------------------------
+float GetTMax(float3 pos, float3 rayOrigin, float3 rayDir)
+{
+	const float4 hpos = mul(float4(pos, 1.0), g_worldViewProjI);
+	pos = hpos.xyz / hpos.w;
+
+	const float3 t = (pos - rayOrigin) / rayDir;
+
+	return max(max(t.x, t.y), t.z);
+}
