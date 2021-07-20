@@ -9,8 +9,8 @@
 //--------------------------------------------------------------------------------------
 struct PSIn
 {
-	float4 Pos : SV_POSITION;
-	float2 Tex : TEXCOORD;
+	float4 Pos	: SV_POSITION;
+	float2 UV	: TEXCOORD;
 };
 
 //--------------------------------------------------------------------------------------
@@ -18,17 +18,20 @@ struct PSIn
 //--------------------------------------------------------------------------------------
 #if _USE_PURE_ARRAY_
 Texture2DArray<float4> g_txCubeMap;
+Texture2DArray<float> g_txCubeDepth;
 #else
 TextureCube<float4> g_txCubeMap;
+TextureCube<float4> g_txCubeDepth;
 #endif
+Texture2D<float> g_txDepth;
 
 //--------------------------------------------------------------------------------------
 // Screen space to local space
 //--------------------------------------------------------------------------------------
-float3 TexcoordToLocalPos(float2 tex)
+float3 TexcoordToLocalPos(float2 uv)
 {
 	float4 pos;
-	pos.xy = tex * 2.0 - 1.0;
+	pos.xy = uv * 2.0 - 1.0;
 	pos.zw = float2(0.0, 1.0);
 	pos.y = -pos.y;
 	pos = mul(pos, g_worldViewProjI);
@@ -128,7 +131,7 @@ float3 ClampEdge(float3 pos, float3 rayDir, float bound)
 //--------------------------------------------------------------------------------------
 min16float4 main(PSIn input) : SV_TARGET
 {
-	float3 pos = TexcoordToLocalPos(input.Tex);	// The point on the near plane
+	float3 pos = TexcoordToLocalPos(input.UV);	// The point on the near plane
 	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI).xyz;
 	const float3 rayDir = normalize(pos - localSpaceEyePt);
 
@@ -136,15 +139,41 @@ min16float4 main(PSIn input) : SV_TARGET
 	if (hitPlane > 2) discard;
 
 #if _USE_PURE_ARRAY_
-	const float3 tex = ComputeCubeTexcoord(pos, hitPlane);
+	const float3 uvw = ComputeCubeTexcoord(pos, hitPlane);
 #else
 	float2 gridSize;
 	g_txCubeMap.GetDimensions(gridSize.x, gridSize.y);
-	const float3 tex = ClampEdge(pos, rayDir, 1.0 - 1.0 / gridSize.x);
+	const float3 uvw = ClampEdge(pos, rayDir, 1.0 - 1.0 / gridSize.x);
 #endif
-	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, tex, 0.0);
+
+#if 0
+	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
+#else
+	const float depth = g_txDepth[input.Pos.xy];
+	const float4 r = g_txCubeMap.GatherRed(g_smpLinear, uvw);
+	const float4 g = g_txCubeMap.GatherGreen(g_smpLinear, uvw);
+	const float4 b = g_txCubeMap.GatherBlue(g_smpLinear, uvw);
+	const float4 a = g_txCubeMap.GatherAlpha(g_smpLinear, uvw);
+	const float4 z = g_txCubeDepth.GatherRed(g_smpLinear, uvw);
+
+	min16float4 results[4];
+	[unroll]
+	for (uint i = 0; i < 4; ++i) results[i] = min16float4(r[i], g[i], b[i], a[i]);
+
+	min16float4 result = 0.0;
+	min16float ws = 0.0;
+	[unroll]
+	//for (i = 0; i < 4; ++i) result = results[i].w > result.w ? results[i] : result;
+	for (i = 0; i < 4; ++i)
+	{
+		const min16float w = abs(depth - z[i]) < 0.01;
+		result += results[i] * w;
+		ws += w;
+	}
+	result /= ws;
+#endif
 	
-	//if (result.w < 0.0) discard;
+	//if (result.w <= 0.0) discard;
 
 	return min16float4(result.xyz, result.w);
 }

@@ -104,6 +104,7 @@ protected:
 	XUSG::ShaderResource::sptr	m_fileSrc;
 	XUSG::Texture3D::uptr		m_volume;
 	XUSG::Texture2D::uptr		m_cubeMap;
+	XUSG::Texture2D::uptr		m_cubeDepth;
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 

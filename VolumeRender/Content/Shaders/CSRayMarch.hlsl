@@ -18,6 +18,7 @@ static const min16float g_lightStepScale = g_maxDist / NUM_LIGHT_SAMPLES;
 Texture2D<float> g_txDepth;
 
 RWTexture2DArray<float4> g_rwCubeMap;
+RWTexture2DArray<float> g_rwCubeDepth;
 
 //--------------------------------------------------------------------------------------
 // Get the local-space position of the grid surface
@@ -134,7 +135,7 @@ float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 	float2 uv = xy * 0.5 + 0.5;
 	uv.y = 1.0 - uv.y;
 
-	const float4 depths = g_txDepth.Gather(g_smpLinear, uv);
+	const float4 depths = g_txDepth.GatherRed(g_smpLinear, uv);
 	const float2 zs = max(depths.xy, depths.zw);
 	const float z = max(zs.x, zs.y);
 
@@ -158,6 +159,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
 	// Calculate occluded end point
 	const float3 pos = GetClipPos(rayOrigin, rayDir);
+	g_rwCubeDepth[DTid] = pos.z;
 	const float tMax = GetTMax(pos, rayOrigin, rayDir);
 	
 #ifdef _POINT_LIGHT_
