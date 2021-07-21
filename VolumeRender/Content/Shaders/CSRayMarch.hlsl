@@ -13,9 +13,12 @@ static const min16float g_stepScale = g_maxDist / NUM_SAMPLES;
 static const min16float g_lightStepScale = g_maxDist / NUM_LIGHT_SAMPLES;
 
 //--------------------------------------------------------------------------------------
-// Unordered access texture
+// Textures
 //--------------------------------------------------------------------------------------
+Texture2D<float> g_txDepth;
+
 RWTexture2DArray<float4> g_rwCubeMap;
+RWTexture2DArray<float> g_rwCubeDepth;
 
 //--------------------------------------------------------------------------------------
 // Get the local-space position of the grid surface
@@ -121,19 +124,43 @@ float3 GetLight(float3 pos, float3 step)
 #endif
 
 //--------------------------------------------------------------------------------------
+// Get clip-space position
+//--------------------------------------------------------------------------------------
+float3 GetClipPos(float3 rayOrigin, float3 rayDir)
+{
+	float4 hPos = float4(rayOrigin + 0.01 * rayDir, 1.0);
+	hPos = mul(hPos, g_worldViewProj);
+
+	const float2 xy = hPos.xy / hPos.w;
+	float2 uv = xy * 0.5 + 0.5;
+	uv.y = 1.0 - uv.y;
+
+	const float4 depths = g_txDepth.GatherRed(g_smpLinear, uv);
+	const float2 zs = min(depths.xy, depths.zw);
+	const float z = min(zs.x, zs.y);
+
+	return float3(xy, z);
+}
+
+//--------------------------------------------------------------------------------------
 // Compute Shader
 //--------------------------------------------------------------------------------------
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
 	float3 rayOrigin = mul(g_eyePos, g_worldI).xyz;
-	//if (rayOrigin[DTid.z>> 1] == 0.0) return;
+	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
 
 	const float3 target = GetLocalPos(DTid.xy, DTid.z, g_rwCubeMap);
 	if (!IsVisible(DTid.z, target, rayOrigin)) return;
 
 	const float3 rayDir = normalize(target - rayOrigin);
 	if (!ComputeRayOrigin(rayOrigin, rayDir)) return;
+
+	// Calculate occluded end point
+	const float3 pos = GetClipPos(rayOrigin, rayDir);
+	g_rwCubeDepth[DTid] = pos.z;
+	const float tMax = GetTMax(pos, rayOrigin, rayDir);
 	
 #ifdef _POINT_LIGHT_
 	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;
@@ -181,6 +208,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		}
 
 		t += max(1.5 * g_stepScale * t, g_stepScale);
+		if (t > tMax) break;
 	}
 
 	g_rwCubeMap[DTid] = float4(scatter, 1.0 - transm);

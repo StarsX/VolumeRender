@@ -183,5 +183,11 @@
     <FxCompile Include="Content\Shaders\PSBasePass.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="Content\Shaders\VSCube.hlsl">
+      <Filter>Shaders\RayCaster</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\PSCube.hlsl">
+      <Filter>Shaders\RayCaster</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

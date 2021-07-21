@@ -14,6 +14,7 @@ using namespace XUSG;
 struct CBPerObject
 {
 	XMMATRIX WorldViewProjI;
+	XMMATRIX WorldViewProj;
 	XMMATRIX WorldI;
 	XMMATRIX LightMapWorld;
 	XMFLOAT4 EyePos;
@@ -57,6 +58,10 @@ bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
 	m_cubeMap = Texture2D::MakeUnique();
 	N_RETURN(m_cubeMap->Create(m_device.get(), gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
+
+	m_cubeDepth = Texture2D::MakeUnique();
+	N_RETURN(m_cubeDepth->Create(m_device.get(), gridSize, gridSize, Format::R32_FLOAT, 6,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, true, L"CubeDepth"), false);
 
 	m_lightGridSize = gridSize >> 1;
 	m_lightMap = Texture3D::MakeUnique();
@@ -181,6 +186,7 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 
 	// Screen space matrices
 	const auto pCbPerObject = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
+	pCbPerObject->WorldViewProj = XMMatrixTranspose(worldViewProj);
 	pCbPerObject->WorldViewProjI = XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj));
 	pCbPerObject->WorldI = XMMatrixTranspose(XMMatrixInverse(nullptr, world));
 
@@ -208,7 +214,8 @@ void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, uint
 		{
 			rayMarch(pCommandList, frameIndex);
 		}
-		rayCast(pCommandList, frameIndex);
+		//rayCast(pCommandList, frameIndex);
+		renderCube(pCommandList, frameIndex);
 	}
 	else
 	{
@@ -288,7 +295,7 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
-		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
@@ -311,7 +318,7 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
-		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
@@ -319,17 +326,30 @@ bool RayCaster::createPipelineLayouts()
 			PipelineLayoutFlag::NONE, L"ViewSpaceRayMarchingLayout"), false);
 	}
 
-	// Ray casting
+	// Screen-space ray casting from cube map
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
-		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 3, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayCastingLayout"), false);
+	}
+
+	// Cube rendering
+	{
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 3, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetShaderStage(0, Shader::Stage::VS);
+		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
+		X_RETURN(m_pipelineLayouts[CUBE], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+			PipelineLayoutFlag::NONE, L"CubeLayout"), false);
 	}
 
 	// Direct ray casting
@@ -421,7 +441,7 @@ bool RayCaster::createPipelines(Format rtFormat)
 		X_RETURN(m_pipelines[RAY_MARCH_V], state->GetPipeline(m_computePipelineCache.get(), L"ViewSpaceRayMarching"), false);
 	}
 
-	// Ray casting
+	// Screen-space ray casting from cube map
 	{
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSRayCast.cso"), false);
@@ -436,6 +456,24 @@ bool RayCaster::createPipelines(Format rtFormat)
 		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
 		X_RETURN(m_pipelines[RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
+	}
+
+	// Cube rendering
+	{
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSCube.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSCube.cso"), false);
+
+		const auto state = Graphics::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[CUBE]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->RSSetState(Graphics::CULL_FRONT, m_graphicsPipelineCache.get()); // Front-face culling for interior surfaces
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		//state->OMSetBlendState(Graphics::NON_PRE_MUL, m_graphicsPipelineCache.get());
+		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
+		state->OMSetRTVFormats(&rtFormat, 1);
+		X_RETURN(m_pipelines[CUBE], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
 	}
 
 	// Direct Ray casting
@@ -491,6 +529,7 @@ bool RayCaster::createDescriptorTables()
 		const Descriptor descriptors[] =
 		{
 			m_cubeMap->GetUAV(),
+			m_cubeDepth->GetUAV()
 			//m_volume->GetSRV(),	// shared with m_srvTables[SRV_TABLE_VOLUME]
 			//m_lightMap->GetSRV()	// shared with m_srvTables[SRV_TABLE_LIGHT_MAP]
 		};
@@ -526,7 +565,12 @@ bool RayCaster::createDescriptorTables()
 	// Create SRV tables
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_cubeMap->GetSRV());
+		const Descriptor descriptors[] =
+		{
+			m_cubeMap->GetSRV(),
+			m_cubeDepth->GetSRV()
+		};
+		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
 		X_RETURN(m_srvTables[SRV_TABLE_CUBE_MAP], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
@@ -616,6 +660,28 @@ void RayCaster::rayCast(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);
+}
+
+void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
+{
+	// Set barriers
+	ResourceBarrier barrier;
+	const auto numBarriers = m_cubeMap->SetBarrier(&barrier, ResourceState::PIXEL_SHADER_RESOURCE);
+	pCommandList->Barrier(numBarriers, &barrier);
+
+	// Set pipeline state
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[CUBE]);
+	pCommandList->SetPipelineState(m_pipelines[CUBE]);
+
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
+
+	// Set descriptor tables
+	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_CUBE_MAP]);
+	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
+
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
+	pCommandList->Draw(4, 6, 0, 0);
 }
 
 void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameIndex)

@@ -52,6 +52,7 @@ protected:
 		RAY_MARCH_L,
 		RAY_MARCH_V,
 		RAY_CAST,
+		CUBE,
 		DIRECT_RAY_CAST,
 		DIRECT_RAY_CAST_V,
 
@@ -82,6 +83,7 @@ protected:
 	void rayMarch(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayMarchV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void renderCube(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::Device::sptr m_device;
 
@@ -104,6 +106,7 @@ protected:
 	XUSG::ShaderResource::sptr	m_fileSrc;
 	XUSG::Texture3D::uptr		m_volume;
 	XUSG::Texture2D::uptr		m_cubeMap;
+	XUSG::Texture2D::uptr		m_cubeDepth;
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 
