@@ -133,6 +133,9 @@
     <None Include="Content\Shaders\Random.hlsli">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Content\Shaders\PSCube.hlsli">
+      <Filter>Shaders\RayCaster</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Content\Shaders\CSInitGridData.hlsl">
