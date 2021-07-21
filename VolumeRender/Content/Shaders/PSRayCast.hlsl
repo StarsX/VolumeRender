@@ -70,7 +70,6 @@ uint ComputeRayHit(inout float3 pos, float3 rayDir)
 	return hitPlane;
 }
 
-#if _USE_PURE_ARRAY_
 //--------------------------------------------------------------------------------------
 // Compute texcoord
 //--------------------------------------------------------------------------------------
@@ -104,7 +103,8 @@ float3 ComputeCubeTexcoord(float3 pos, uint hitPlane)
 
 	return tex;
 }
-#else
+
+#if !_USE_PURE_ARRAY_
 float3 ClampEdge(float3 pos, float3 rayDir, float bound)
 {
 	[unroll]
@@ -138,14 +138,16 @@ min16float4 main(PSIn input) : SV_TARGET
 	const uint hitPlane = ComputeRayHit(pos, rayDir);
 	if (hitPlane > 2) discard;
 
-#if _USE_PURE_ARRAY_
-	const float3 uvw = ComputeCubeTexcoord(pos, hitPlane);
-#else
 	float2 gridSize;
 	g_txCubeMap.GetDimensions(gridSize.x, gridSize.y);
-	const float3 uvw = ClampEdge(pos, rayDir, 1.0 - 1.0 / gridSize.x);
+	float3 uvw = ComputeCubeTexcoord(pos, hitPlane);
+	const float2 uv = uvw.xy;
+
+#if !_USE_PURE_ARRAY_
+	uvw = ClampEdge(pos, rayDir, 1.0 - 1.0 / gridSize.x);
 #endif
 
+	float4 ref = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
 #if 0
 	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
 #else
@@ -160,6 +162,20 @@ min16float4 main(PSIn input) : SV_TARGET
 	[unroll]
 	for (uint i = 0; i < 4; ++i) results[i] = min16float4(r[i], g[i], b[i], a[i]);
 
+	const min16float2 domain = min16float2(frac(uv * gridSize + 0.5));
+	const min16float2 domainInv = 1.0 - domain;
+	const min16float4 wb =
+	{
+		//domainInv.x * domainInv.y,
+		//domain.x * domainInv.y,
+		//domain.x * domain.y,
+		//domainInv.x * domain.y
+		domain.x * domain.y,
+		domainInv.x * domain.y,
+		domainInv.x * domainInv.y,
+		domain.x * domainInv.y
+	};
+
 	min16float4 result = 0.0;
 	min16float ws = 0.0;
 	[unroll]
@@ -167,13 +183,13 @@ min16float4 main(PSIn input) : SV_TARGET
 	for (i = 0; i < 4; ++i)
 	{
 		const min16float w = abs(depth - z[i]) < 0.01;
-		result += results[i] * w;
-		ws += w;
+		result += results[i] * wb[i];
+		ws += 1.0;
 	}
-	result /= ws;
+	result *= 4.0 / ws;
 #endif
 	
 	//if (result.w <= 0.0) discard;
 
-	return min16float4(result.xyz, result.w);
+	return min16float4(abs(result.xyz - ref.xyz) * 32.0, result.w);
 }
