@@ -13,7 +13,7 @@ struct CBPerObject
 {
 	XMFLOAT4X4 WorldViewProj;
 	XMFLOAT3X4 World;
-	XMFLOAT4X4 Shadow;
+	XMFLOAT4X4 ShadowWVP;
 };
 
 struct CBPerFrame
@@ -107,29 +107,31 @@ void ObjectRenderer::SetAmbient(const XMFLOAT3& color, float intensity)
 
 void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
 {
-	XMFLOAT4X4 mShadow;
+	XMFLOAT4X4 shadowWVP;
 	const auto world = XMMatrixScaling(m_posScale.w, m_posScale.w, m_posScale.w) *
 		XMMatrixTranslation(m_posScale.x, m_posScale.y, m_posScale.z);
 
 	{
 		const auto zNear = 1.0f;
-		const auto zFar = 1000.0f;
+		const auto zFar = 200.0f;
 
 		const auto size = m_sceneSize * 1.5f;
 		const auto lightPos = XMLoadFloat3(&m_lightPt);
 		const auto lightView = XMMatrixLookAtLH(lightPos, XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
 		const auto lightProj = XMMatrixOrthographicLH(size, size, zNear, zFar);
-		XMStoreFloat4x4(&mShadow, XMMatrixTranspose(world * lightView * lightProj));
+		const auto lightViewProj = lightView * lightProj;
+		XMStoreFloat4x4(&m_shadowVP, lightViewProj);
+		XMStoreFloat4x4(&shadowWVP, XMMatrixTranspose(world * lightViewProj));
 
 		const auto pCbData = reinterpret_cast<XMFLOAT4X4*>(m_cbShadow->Map(frameIndex));
-		*pCbData = mShadow;
+		*pCbData = shadowWVP;
 	}
 
 	{
 		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
 		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(world * viewProj));
 		XMStoreFloat3x4(&pCbData->World, world);
-		pCbData->Shadow = mShadow;
+		pCbData->ShadowWVP = shadowWVP;
 	}
 
 	{
@@ -189,6 +191,11 @@ DepthStencil* ObjectRenderer::GetDepthMap(DepthIndex index) const
 const DepthStencil::uptr* ObjectRenderer::GetDepthMaps() const
 {
 	return m_depths;
+}
+
+FXMMATRIX ObjectRenderer::GetShadowVP() const
+{
+	return XMLoadFloat4x4(&m_shadowVP);
 }
 
 bool ObjectRenderer::createVB(CommandList* pCommandList, uint32_t numVert,

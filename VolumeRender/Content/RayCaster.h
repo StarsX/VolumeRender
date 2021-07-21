@@ -31,7 +31,7 @@ public:
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
-	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
+	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, DirectX::CXMMATRIX shadowVP, const DirectX::XMFLOAT3& eyePt);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, uint8_t flags = OPTIMIZED);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayCastDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
@@ -66,6 +66,7 @@ protected:
 		SRV_TABLE_LIGHT_MAP,
 		SRV_TABLE_CUBE_MAP,
 		SRV_TABLE_DEPTH,
+		SRV_TABLE_SHADOW,
 
 		NUM_SRV_TABLE
 	};

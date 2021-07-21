@@ -35,6 +35,7 @@ public:
 
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;
 	const XUSG::DepthStencil::uptr* GetDepthMaps() const;
+	DirectX::FXMMATRIX GetShadowVP() const;
 
 	static const uint8_t FrameCount = 3;
 
@@ -89,6 +90,7 @@ protected:
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;
 	DirectX::XMFLOAT4		m_ambient;
+	DirectX::XMFLOAT4X4		m_shadowVP;
 
 	float					m_sceneSize;
 };

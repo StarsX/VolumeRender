@@ -256,7 +256,7 @@ void VolumeRender::OnUpdate()
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
 	m_objectRenderer->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
-	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
+	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_objectRenderer->GetShadowVP(), m_eyePt);
 	m_particleRenderer->UpdateFrame(m_frameIndex, view, proj, m_eyePt);
 }
 

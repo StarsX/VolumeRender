@@ -9,6 +9,7 @@ cbuffer cbPerObject
 {
 	matrix g_worldViewProjI;
 	matrix g_worldViewProj;
+	matrix g_shadowWVP;
 	matrix g_worldI;
 	matrix g_lightMapWorld;
 	float4 g_eyePos;

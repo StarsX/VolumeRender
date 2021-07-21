@@ -16,6 +16,9 @@ static const min16float g_lightStepScale = g_maxDist / NUM_LIGHT_SAMPLES;
 // Textures
 //--------------------------------------------------------------------------------------
 Texture2D<float> g_txDepth;
+#ifndef _LIGHT_PASS_
+Texture2D<float> g_txShadow;
+#endif
 
 RWTexture2DArray<float4> g_rwCubeMap;
 RWTexture2DArray<float> g_rwCubeDepth;
@@ -99,21 +102,24 @@ bool ComputeRayOrigin(inout float3 rayOrigin, float3 rayDir)
 #ifndef _LIGHT_PASS_
 float3 GetLight(float3 pos, float3 step)
 {
-	min16float shadow = 1.0;	// Transmittance along light ray
+	min16float shadow = ShadowTest(pos, g_txShadow); // Transmittance along light ray
 	
-	for (uint i = 0; i < NUM_LIGHT_SAMPLES; ++i)
+	if (shadow > 0.0)
 	{
-		// Update position along light ray
-		pos += step;
-		if (any(abs(pos) > 1.0)) break;
-		const float3 tex = pos * 0.5 + 0.5;
+		for (uint i = 0; i < NUM_LIGHT_SAMPLES; ++i)
+		{
+			// Update position along light ray
+			pos += step;
+			if (any(abs(pos) > 1.0)) break;
+			const float3 uvw = pos * 0.5 + 0.5;
 
-		// Get a sample along light ray
-		const min16float density = GetSample(tex).w;
+			// Get a sample along light ray
+			const min16float density = GetSample(uvw).w;
 
-		// Attenuate ray-throughput along light direction
-		shadow *= 1.0 - GetOpacity(density, g_lightStepScale);
-		if (shadow < ZERO_THRESHOLD) break;
+			// Attenuate ray-throughput along light direction
+			shadow *= 1.0 - GetOpacity(density, g_lightStepScale);
+			if (shadow < ZERO_THRESHOLD) break;
+		}
 	}
 
 	const min16float3 lightColor = min16float3(g_lightColor.xyz * g_lightColor.w);
@@ -180,10 +186,10 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	{
 		const float3 pos = rayOrigin + rayDir * t;
 		if (any(abs(pos) > 1.0)) break;
-		float3 tex = pos * 0.5 + 0.5;
+		const float3 uvw = pos * 0.5 + 0.5;
 
 		// Get a sample
-		min16float4 color = GetSample(tex);
+		min16float4 color = GetSample(uvw);
 
 		// Skip empty space
 		if (color.w > ZERO_THRESHOLD)
