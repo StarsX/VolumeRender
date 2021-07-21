@@ -30,6 +30,7 @@ public:
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
+	void RenderShadow(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;
@@ -40,8 +41,8 @@ public:
 protected:
 	enum PipelineIndex : uint8_t
 	{
+		DEPTH_PASS,
 		BASE_PASS,
-		SHADOW_PASS,
 
 		NUM_PIPELINE
 	};
@@ -52,8 +53,10 @@ protected:
 		const uint32_t* pData, std::vector<XUSG::Resource::uptr>& uploaders);
 	bool createInputLayout();
 	bool createPipelineLayouts();
-	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat);
+	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat, XUSG::Format dsFormatH);
 	bool createDescriptorTables();
+
+	void renderDepth(const XUSG::CommandList* pCommandList, uint8_t frameIndex, const XUSG::ConstantBuffer* pCb);
 
 	XUSG::Device::sptr m_device;
 
@@ -74,6 +77,7 @@ protected:
 	XUSG::IndexBuffer::uptr		m_indexBuffer;
 
 	XUSG::DepthStencil::uptr	m_depths[NUM_DEPTH];
+	XUSG::ConstantBuffer::uptr	m_cbShadow;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 
@@ -85,4 +89,6 @@ protected:
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;
 	DirectX::XMFLOAT4		m_ambient;
+
+	float					m_sceneSize;
 };

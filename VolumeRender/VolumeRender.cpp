@@ -481,10 +481,14 @@ void VolumeRender::PopulateCommandList()
 	};
 	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
-	ResourceBarrier barriers[2];
+	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex);
+
+	ResourceBarrier barriers[3];
 	const auto pDepth = m_objectRenderer->GetDepthMap(ObjectRenderer::DEPTH_MAP);
+	const auto pShadow = m_objectRenderer->GetDepthMap(ObjectRenderer::SHADOW_MAP);
 	auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = pDepth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
+	numBarriers = pShadow->SetBarrier(barriers, ResourceState::DEPTH_READ, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target

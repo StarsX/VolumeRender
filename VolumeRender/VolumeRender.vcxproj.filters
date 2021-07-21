@@ -192,5 +192,8 @@
     <FxCompile Include="Content\Shaders\PSCube.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
+    <FxCompile Include="Content\Shaders\VSDepth.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
