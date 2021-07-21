@@ -361,7 +361,7 @@ bool RayCaster::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
