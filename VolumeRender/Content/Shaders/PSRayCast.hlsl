@@ -63,33 +63,33 @@ uint ComputeRayHit(inout float3 pos, float3 rayDir)
 //--------------------------------------------------------------------------------------
 float3 ComputeCubeTexcoord(float3 pos, uint hitPlane)
 {
-	float3 tex;
+	float3 uvw;
 
 	switch (hitPlane)
 	{
 	case 0: // X
-		tex.x = -pos.x * pos.z;
-		tex.y = pos.y;
-		tex.z = pos.x < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
+		uvw.x = -pos.x * pos.z;
+		uvw.y = pos.y;
+		uvw.z = pos.x < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	case 1: // Y
-		tex.x = pos.x;
-		tex.y = -pos.y * pos.z;
-		tex.z = pos.y < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
+		uvw.x = pos.x;
+		uvw.y = -pos.y * pos.z;
+		uvw.z = pos.y < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	case 2: // Z
-		tex.x = pos.z * pos.x;
-		tex.y = pos.y;
-		tex.z = pos.z < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
+		uvw.x = pos.z * pos.x;
+		uvw.y = pos.y;
+		uvw.z = pos.z < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	default:
-		tex = 0.0;
+		uvw = 0.0;
 		break;
 	}
-	tex.xy = tex.xy * 0.5 + 0.5;
-	tex.y = 1.0 - tex.y;
+	uvw.xy = uvw.xy * 0.5 + 0.5;
+	uvw.y = 1.0 - uvw.y;
 
-	return tex;
+	return uvw;
 }
 
 //--------------------------------------------------------------------------------------
@@ -104,14 +104,7 @@ min16float4 main(PSIn input) : SV_TARGET
 	const uint hitPlane = ComputeRayHit(pos, rayDir);
 	if (hitPlane > 2) discard;
 
-	float2 gridSize;
-	g_txCubeMap.GetDimensions(gridSize.x, gridSize.y);
-	float3 uvw = ComputeCubeTexcoord(pos, hitPlane);
-	float2 uv = uvw.xy;
+	const float3 uvw = ComputeCubeTexcoord(pos, hitPlane);
 
-#if !_USE_PURE_ARRAY_
-	uvw = ClampEdge(pos, rayDir, 1.0 - 1.0 / gridSize.x);
-#endif
-
-	return CubeCast(uvw, uv * gridSize, input.Pos.xy);
+	return CubeCast(input.Pos.xy, uvw, pos);
 }

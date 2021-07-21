@@ -19,14 +19,5 @@ struct PSIn
 //--------------------------------------------------------------------------------------
 min16float4 main(PSIn input) : SV_TARGET
 {
-	float2 gridSize;
-	g_txCubeMap.GetDimensions(gridSize.x, gridSize.y);
-	float3 uvw = input.UVW;
-	float2 uv = uvw.xy;
-
-#if !_USE_PURE_ARRAY_
-	uvw = input.LPt;
-#endif
-
-	return CubeCast(uvw, uv * gridSize, input.Pos.xy);
+	return CubeCast(input.Pos.xy, input.UVW, input.LPt);
 }
