@@ -70,8 +70,9 @@ min16float4 main(PSIn input) : SV_TARGET
 	[unroll]
 	for (i = 0; i < 4; ++i)
 	{
-		min16float w = 1.0;//abs(depth - z[i]) < 0.01;
+		min16float w = abs(depth - z[i]) < 0.01;
 		w *= wb[i];
+
 		result += results[i] * w;
 		ws += w;
 	}
