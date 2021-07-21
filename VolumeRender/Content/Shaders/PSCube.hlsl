@@ -19,5 +19,8 @@ struct PSIn
 //--------------------------------------------------------------------------------------
 min16float4 main(PSIn input) : SV_TARGET
 {
-	return CubeCast(input.Pos.xy, input.UVW, input.LPt);
+	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI).xyz;
+	const float3 rayDir = input.LPt - localSpaceEyePt;
+
+	return CubeCast(input.Pos.xy, input.UVW, input.LPt, rayDir);
 }

@@ -16,32 +16,32 @@ TextureCube<float4> g_txCubeDepth;
 #endif
 Texture2D<float> g_txDepth;
 
-#if !_USE_PURE_ARRAY_
-float3 ClampEdge(float3 pos, float3 rayDir, float bound)
+//--------------------------------------------------------------------------------------
+// Get domain location
+//--------------------------------------------------------------------------------------
+min16float2 GetDomain(float2 uv, float3 pos, float3 rayDir, float2 gridSize)
 {
-	[unroll]
-	for (uint i = 0; i < 3; ++i)
-	{
-		const float axis = pos[i];
-		//if (abs(axis) > bound)
-		//{
-		//	float3 norm = 0.0;
-		//	norm[i] = axis >= 0.0 ? 1.0 : -1.0;
-		//	if (dot(norm, rayDir) < 0.0)
-		//		pos[i] = axis >= 0.0 ? bound : -bound;
-		//}
-		if (abs(axis) > bound && axis * rayDir[i] < 0.0)
-			pos[i] = axis >= 0.0 ? bound : -bound;
-	}
+	uv *= gridSize;
+	min16float2 domain = min16float2(frac(uv + 0.5));
 
-	return pos;
-}
+#if !_USE_PURE_ARRAY_
+	const float bound = gridSize.x - 1.0;
+	const float3 axes = pos * gridSize.x;
+	if (any(abs(axes) > bound && axes * rayDir < 0.0))
+	{
+		// Need to clamp edge
+		uv = min(uv, gridSize - 0.5);
+		domain = uv.x < 0.5 ? 1.0 : 0.0;
+	}
 #endif
+
+	return domain;
+}
 
 //--------------------------------------------------------------------------------------
 // Cube interior-surface casting
 //--------------------------------------------------------------------------------------
-min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos)
+min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 {
 	float2 gridSize;
 	g_txCubeMap.GetDimensions(gridSize.x, gridSize.y);
@@ -65,8 +65,7 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos)
 	[unroll]
 	for (uint i = 0; i < 4; ++i) results[i] = min16float4(r[i], g[i], b[i], a[i]);
 
-	uv *= gridSize;
-	const min16float2 domain = min16float2(frac(uv + 0.5));
+	const min16float2 domain = GetDomain(uv, pos, rayDir, gridSize);
 	const min16float2 domainInv = 1.0 - domain;
 	const min16float4 wb =
 	{
