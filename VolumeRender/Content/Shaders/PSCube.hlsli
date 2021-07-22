@@ -29,9 +29,9 @@ min16float2 GetDomain(float2 uv, float3 pos, float3 rayDir, float2 gridSize)
 	const float3 axes = pos * gridSize.x;
 	if (any(abs(axes) > bound && axes * rayDir < 0.0))
 	{
-		// Need to clamp edge
+		// Need to clamp the exterior edge
 		uv = min(uv, gridSize - 0.5);
-		domain = uv.x < 0.5 ? 1.0 : 0.0;
+		domain = uv < 0.5 ? 1.0 : 0.0;
 	}
 #endif
 
