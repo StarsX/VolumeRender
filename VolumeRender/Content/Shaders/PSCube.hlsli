@@ -2,6 +2,7 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#include "SharedConsts.h"
 #include "RayCast.hlsli"
 
 //--------------------------------------------------------------------------------------
@@ -15,6 +16,16 @@ TextureCube<float4> g_txCubeMap;
 TextureCube<float4> g_txCubeDepth;
 #endif
 Texture2D<float> g_txDepth;
+
+//--------------------------------------------------------------------------------------
+// Unproject and return z in viewing space
+//--------------------------------------------------------------------------------------
+float UnprojectZ(float depth)
+{
+	static const float3 unproj = { g_zNear - g_zFar, g_zFar, g_zNear * g_zFar };
+
+	return unproj.z / (depth * unproj.x + unproj.y);
+}
 
 //--------------------------------------------------------------------------------------
 // Get domain location
@@ -54,7 +65,7 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 #if 0
 	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
 #else
-	const float depth = g_txDepth[idx];
+	float depth = g_txDepth[idx];
 	const float4 r = g_txCubeMap.GatherRed(g_smpLinear, uvw);
 	const float4 g = g_txCubeMap.GatherGreen(g_smpLinear, uvw);
 	const float4 b = g_txCubeMap.GatherBlue(g_smpLinear, uvw);
@@ -75,19 +86,21 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 		domainInv.x * domainInv.y
 	};
 
+	depth = UnprojectZ(depth);
 	min16float4 result = 0.0;
 	min16float ws = 0.0;
 	[unroll]
 	for (i = 0; i < 4; ++i)
 	{
-		min16float w = abs(depth - z[i]) < 0.01;
+		const float zi = UnprojectZ(z[i]);
+		min16float w = min16float(max(1.0 - abs(depth - zi), 0.0));
 		w *= wb[i];
 
 		result += results[i] * w;
 		ws += w;
 	}
 
-	result /= ws;
+	result /= ws > 0.0 ? ws : 1.0;
 #endif
 
 	if (result.w <= 0.0) discard;

@@ -10,6 +10,7 @@
 //*********************************************************
 
 #include "VolumeRender.h"
+#include "SharedConsts.h"
 
 using namespace std;
 using namespace XUSG;
@@ -27,8 +28,6 @@ enum RenderMethod
 };
 
 const float g_FOVAngleY = XM_PIDIV4;
-const float g_zNear = 1.0f;
-const float g_zFar = 1000.0f;
 
 RenderMethod g_renderMethod = RAY_MARCH_SEPARATE;
 const auto g_rtFormat = Format::B8G8R8A8_UNORM;

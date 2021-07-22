@@ -68,9 +68,9 @@ float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 	float2 uv = xy * 0.5 + 0.5;
 	uv.y = 1.0 - uv.y;
 
-	const float4 depths = g_txDepth.GatherRed(g_smpLinear, uv);
-	const float2 zs = min(depths.xy, depths.zw);
-	const float z = min(zs.x, zs.y);
+	const float4 depths = g_txDepth.Gather(g_smpLinear, uv);
+	const float2 zs = max(depths.xy, depths.zw);
+	const float z = max(zs.x, zs.y);
 
 	return float3(xy, z);
 }

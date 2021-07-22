@@ -90,6 +90,9 @@
     <ClInclude Include="XUSG\Optional\XUSGObjLoader.h">
       <Filter>XUSG\Optional</Filter>
     </ClInclude>
+    <ClInclude Include="Content\SharedConsts.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Common\DXFramework.cpp">
