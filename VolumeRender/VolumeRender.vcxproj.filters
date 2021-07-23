@@ -90,6 +90,9 @@
     <ClInclude Include="XUSG\Optional\XUSGObjLoader.h">
       <Filter>XUSG\Optional</Filter>
     </ClInclude>
+    <ClInclude Include="Content\SharedConsts.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Common\DXFramework.cpp">
@@ -132,6 +135,9 @@
     </None>
     <None Include="Content\Shaders\Random.hlsli">
       <Filter>Shaders</Filter>
+    </None>
+    <None Include="Content\Shaders\PSCube.hlsli">
+      <Filter>Shaders\RayCaster</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -188,6 +194,9 @@
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSCube.hlsl">
       <Filter>Shaders\RayCaster</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\VSDepth.hlsl">
+      <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

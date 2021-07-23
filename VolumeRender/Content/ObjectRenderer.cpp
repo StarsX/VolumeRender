@@ -13,6 +13,7 @@ struct CBPerObject
 {
 	XMFLOAT4X4 WorldViewProj;
 	XMFLOAT3X4 World;
+	XMFLOAT4X4 ShadowWVP;
 };
 
 struct CBPerFrame
@@ -52,11 +53,17 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	if (!objLoader.Import(fileName, true, true)) return false;
 	N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
 	N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
+	m_sceneSize = objLoader.GetRadius() * posScale.w * 2.0f;
 
 	// Create resources
+	const auto smFormat = Format::D16_UNORM;
 	for (auto& depth : m_depths) depth = DepthStencil::MakeUnique();
 	N_RETURN(m_depths[SHADOW_MAP]->Create(m_device.get(), m_shadowMapSize, m_shadowMapSize,
-		Format::D16_UNORM, ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Shadow"), false);
+		smFormat, ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Shadow"), false);
+
+	m_cbShadow = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbShadow->Create(m_device.get(), sizeof(XMFLOAT4X4[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBshadow"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
@@ -72,7 +79,7 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	// Create pipelines
 	N_RETURN(createInputLayout(), false);
 	N_RETURN(createPipelineLayouts(), false);
-	N_RETURN(createPipelines(rtFormat, dsFormat), false);
+	N_RETURN(createPipelines(rtFormat, dsFormat, smFormat), false);
 	N_RETURN(createDescriptorTables(), false);
 
 	return true;
@@ -100,13 +107,31 @@ void ObjectRenderer::SetAmbient(const XMFLOAT3& color, float intensity)
 
 void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
 {
-	{
-		const auto world = XMMatrixScaling(m_posScale.w, m_posScale.w, m_posScale.w) *
-			XMMatrixTranslation(m_posScale.x, m_posScale.y, m_posScale.z);
+	XMFLOAT4X4 shadowWVP;
+	const auto world = XMMatrixScaling(m_posScale.w, m_posScale.w, m_posScale.w) *
+		XMMatrixTranslation(m_posScale.x, m_posScale.y, m_posScale.z);
 
+	{
+		const auto zNear = 1.0f;
+		const auto zFar = 200.0f;
+
+		const auto size = m_sceneSize * 1.5f;
+		const auto lightPos = XMLoadFloat3(&m_lightPt);
+		const auto lightView = XMMatrixLookAtLH(lightPos, XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
+		const auto lightProj = XMMatrixOrthographicLH(size, size, zNear, zFar);
+		const auto lightViewProj = lightView * lightProj;
+		XMStoreFloat4x4(&m_shadowVP, lightViewProj);
+		XMStoreFloat4x4(&shadowWVP, XMMatrixTranspose(world * lightViewProj));
+
+		const auto pCbData = reinterpret_cast<XMFLOAT4X4*>(m_cbShadow->Map(frameIndex));
+		*pCbData = shadowWVP;
+	}
+
+	{
 		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
 		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(world * viewProj));
 		XMStoreFloat3x4(&pCbData->World, world);
+		pCbData->ShadowWVP = shadowWVP;
 	}
 
 	{
@@ -116,6 +141,28 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 		pCbData->LightColor = m_lightColor;
 		pCbData->Ambient = m_ambient;
 	}
+}
+
+void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frameIndex)
+{
+	// Set barrier
+	ResourceBarrier barrier;
+	const auto& shadow = m_depths[SHADOW_MAP];
+	const auto numBarriers = shadow->SetBarrier(&barrier, ResourceState::DEPTH_WRITE);
+	pCommandList->Barrier(numBarriers, &barrier);
+
+	// Clear depth
+	const auto dsv = shadow->GetDSV();
+	pCommandList->OMSetRenderTargets(0, nullptr, &dsv);
+	pCommandList->ClearDepthStencilView(dsv, ClearFlag::DEPTH, 1.0f);
+
+	// Set shadow viewport
+	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_shadowMapSize), static_cast<float>(m_shadowMapSize));
+	RectRange scissorRect(0, 0, m_shadowMapSize, m_shadowMapSize);
+	pCommandList->RSSetViewports(1, &viewport);
+	pCommandList->RSSetScissorRects(1, &scissorRect);
+
+	renderDepth(pCommandList, frameIndex, m_cbShadow.get());
 }
 
 void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
@@ -144,6 +191,11 @@ DepthStencil* ObjectRenderer::GetDepthMap(DepthIndex index) const
 const DepthStencil::uptr* ObjectRenderer::GetDepthMaps() const
 {
 	return m_depths;
+}
+
+FXMMATRIX ObjectRenderer::GetShadowVP() const
+{
+	return XMLoadFloat4x4(&m_shadowVP);
 }
 
 bool ObjectRenderer::createVB(CommandList* pCommandList, uint32_t numVert,
@@ -187,6 +239,14 @@ bool ObjectRenderer::createInputLayout()
 
 bool ObjectRenderer::createPipelineLayouts()
 {
+	// Depth pass
+	{
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRootCBV(0, 0, 0, Shader::VS);
+		X_RETURN(m_pipelineLayouts[DEPTH_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"DepthPassLayout"), false);
+	}
+
 	// Base pass
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
@@ -199,10 +259,24 @@ bool ObjectRenderer::createPipelineLayouts()
 	return true;
 }
 
-bool ObjectRenderer::createPipelines(Format rtFormat, Format dsFormat)
+bool ObjectRenderer::createPipelines(Format rtFormat, Format dsFormat, XUSG::Format dsFormatH)
 {
 	auto vsIndex = 0u;
 	auto psIndex = 0u;
+
+	// Depth pass
+	{
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSDepth.cso"), false);
+
+		const auto state = Graphics::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[DEPTH_PASS]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
+		state->IASetInputLayout(m_pInputLayout);
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		//state->DSSetState(Graphics::DepthStencilPreset::DEFAULT_LESS, m_graphicsPipelineCache.get());
+		state->OMSetDSVFormat(dsFormatH);
+		X_RETURN(m_pipelines[DEPTH_PASS], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
+	}
 
 	// Base pass
 	{
@@ -227,4 +301,21 @@ bool ObjectRenderer::createPipelines(Format rtFormat, Format dsFormat)
 bool ObjectRenderer::createDescriptorTables()
 {
 	return true;
+}
+
+void ObjectRenderer::renderDepth(const CommandList* pCommandList, uint8_t frameIndex, const ConstantBuffer* pCb)
+{
+	// Set pipeline state
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[DEPTH_PASS]);
+	pCommandList->SetPipelineState(m_pipelines[DEPTH_PASS]);
+
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+
+	// Set descriptor table
+	pCommandList->SetGraphicsRootConstantBufferView(0, pCb, pCb->GetCBVOffset(frameIndex));
+
+	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
+	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
+
+	pCommandList->DrawIndexed(m_numIndices, 1, 0, 0, 0);
 }

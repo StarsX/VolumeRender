@@ -3,23 +3,26 @@
 //--------------------------------------------------------------------------------------
 
 //--------------------------------------------------------------------------------------
-// Structure
+// Structs
 //--------------------------------------------------------------------------------------
-struct VSOut
+struct VSIn
 {
-	float4 Pos	: SV_POSITION;
-	float2 UV	: TEXCOORD;
+	float3	Pos	: POSITION;
+	float3	Nrm	: NORMAL;
 };
 
 //--------------------------------------------------------------------------------------
-// Vertex shader used for screen-space post-processing
+// Constant buffer
 //--------------------------------------------------------------------------------------
-VSOut main(uint vid : SV_VertexID)
+cbuffer cbPerObject
 {
-	VSOut output;
+	matrix g_worldViewProj;
+};
 
-	output.UV = float2((vid << 1) & 2, vid & 2);
-	output.Pos = float4(output.UV * float2(2.0, -2.0) + float2(-1.0, 1.0), 1.0.xx);
-
-	return output;
+//--------------------------------------------------------------------------------------
+// Depth/shadow pass
+//--------------------------------------------------------------------------------------
+float4 main(VSIn input) : SV_POSITION
+{
+	return mul(float4(input.Pos, 1.0), g_worldViewProj);
 }

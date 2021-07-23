@@ -2,6 +2,5 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#define _LIGHT_PASS_
-
-#include "PSDirectRayCast.hlsl"
+static const float g_zNear = 1.0f;
+static const float g_zFar = 1000.0f;

@@ -10,6 +10,7 @@
 //*********************************************************
 
 #include "VolumeRender.h"
+#include "SharedConsts.h"
 
 using namespace std;
 using namespace XUSG;
@@ -27,8 +28,6 @@ enum RenderMethod
 };
 
 const float g_FOVAngleY = XM_PIDIV4;
-const float g_zNear = 1.0f;
-const float g_zFar = 1000.0f;
 
 RenderMethod g_renderMethod = RAY_MARCH_SEPARATE;
 const auto g_rtFormat = Format::B8G8R8A8_UNORM;
@@ -256,7 +255,7 @@ void VolumeRender::OnUpdate()
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
 	m_objectRenderer->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
-	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
+	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_objectRenderer->GetShadowVP(), m_eyePt);
 	m_particleRenderer->UpdateFrame(m_frameIndex, view, proj, m_eyePt);
 }
 
@@ -481,10 +480,14 @@ void VolumeRender::PopulateCommandList()
 	};
 	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
-	ResourceBarrier barriers[2];
+	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex);
+
+	ResourceBarrier barriers[3];
 	const auto pDepth = m_objectRenderer->GetDepthMap(ObjectRenderer::DEPTH_MAP);
+	const auto pShadow = m_objectRenderer->GetDepthMap(ObjectRenderer::SHADOW_MAP);
 	auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = pDepth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
+	numBarriers = pShadow->SetBarrier(barriers, ResourceState::DEPTH_READ, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target

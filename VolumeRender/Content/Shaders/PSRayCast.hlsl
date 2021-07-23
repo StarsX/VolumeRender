@@ -2,7 +2,7 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#include "RayCast.hlsli"
+#include "PSCube.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Structure
@@ -12,18 +12,6 @@ struct PSIn
 	float4 Pos	: SV_POSITION;
 	float2 UV	: TEXCOORD;
 };
-
-//--------------------------------------------------------------------------------------
-// Texture
-//--------------------------------------------------------------------------------------
-#if _USE_PURE_ARRAY_
-Texture2DArray<float4> g_txCubeMap;
-Texture2DArray<float> g_txCubeDepth;
-#else
-TextureCube<float4> g_txCubeMap;
-TextureCube<float4> g_txCubeDepth;
-#endif
-Texture2D<float> g_txDepth;
 
 //--------------------------------------------------------------------------------------
 // Screen space to local space
@@ -75,56 +63,34 @@ uint ComputeRayHit(inout float3 pos, float3 rayDir)
 //--------------------------------------------------------------------------------------
 float3 ComputeCubeTexcoord(float3 pos, uint hitPlane)
 {
-	float3 tex;
+	float3 uvw;
 
 	switch (hitPlane)
 	{
 	case 0: // X
-		tex.x = -pos.x * pos.z;
-		tex.y = pos.y;
-		tex.z = pos.x < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
+		uvw.x = -pos.x * pos.z;
+		uvw.y = pos.y;
+		uvw.z = pos.x < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	case 1: // Y
-		tex.x = pos.x;
-		tex.y = -pos.y * pos.z;
-		tex.z = pos.y < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
+		uvw.x = pos.x;
+		uvw.y = -pos.y * pos.z;
+		uvw.z = pos.y < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	case 2: // Z
-		tex.x = pos.z * pos.x;
-		tex.y = pos.y;
-		tex.z = pos.z < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
+		uvw.x = pos.z * pos.x;
+		uvw.y = pos.y;
+		uvw.z = pos.z < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
 		break;
 	default:
-		tex = 0.0;
+		uvw = 0.0;
 		break;
 	}
-	tex.xy = tex.xy * 0.5 + 0.5;
-	tex.y = 1.0 - tex.y;
+	uvw.xy = uvw.xy * 0.5 + 0.5;
+	uvw.y = 1.0 - uvw.y;
 
-	return tex;
+	return uvw;
 }
-
-#if !_USE_PURE_ARRAY_
-float3 ClampEdge(float3 pos, float3 rayDir, float bound)
-{
-	[unroll]
-	for (uint i = 0; i < 3; ++i)
-	{
-		const float axis = pos[i];
-		//if (abs(axis) > bound)
-		//{
-		//	float3 norm = 0.0;
-		//	norm[i] = axis >= 0.0 ? 1.0 : -1.0;
-		//	if (dot(norm, rayDir) < 0.0)
-		//		pos[i] = axis >= 0.0 ? bound : -bound;
-		//}
-		if (abs(axis) > bound && axis * rayDir[i] < 0.0)
-			pos[i] = axis >= 0.0 ? bound : -bound;
-	}
-
-	return pos;
-}
-#endif
 
 //--------------------------------------------------------------------------------------
 // Pixel Shader
@@ -138,58 +104,7 @@ min16float4 main(PSIn input) : SV_TARGET
 	const uint hitPlane = ComputeRayHit(pos, rayDir);
 	if (hitPlane > 2) discard;
 
-	float2 gridSize;
-	g_txCubeMap.GetDimensions(gridSize.x, gridSize.y);
-	float3 uvw = ComputeCubeTexcoord(pos, hitPlane);
-	const float2 uv = uvw.xy;
+	const float3 uvw = ComputeCubeTexcoord(pos, hitPlane);
 
-#if !_USE_PURE_ARRAY_
-	uvw = ClampEdge(pos, rayDir, 1.0 - 1.0 / gridSize.x);
-#endif
-
-	float4 ref = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
-#if 0
-	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
-#else
-	const float depth = g_txDepth[input.Pos.xy];
-	const float4 r = g_txCubeMap.GatherRed(g_smpLinear, uvw);
-	const float4 g = g_txCubeMap.GatherGreen(g_smpLinear, uvw);
-	const float4 b = g_txCubeMap.GatherBlue(g_smpLinear, uvw);
-	const float4 a = g_txCubeMap.GatherAlpha(g_smpLinear, uvw);
-	const float4 z = g_txCubeDepth.GatherRed(g_smpLinear, uvw);
-
-	min16float4 results[4];
-	[unroll]
-	for (uint i = 0; i < 4; ++i) results[i] = min16float4(r[i], g[i], b[i], a[i]);
-
-	const min16float2 domain = min16float2(frac(uv * gridSize + 0.5));
-	const min16float2 domainInv = 1.0 - domain;
-	const min16float4 wb =
-	{
-		//domainInv.x * domainInv.y,
-		//domain.x * domainInv.y,
-		//domain.x * domain.y,
-		//domainInv.x * domain.y
-		domain.x * domain.y,
-		domainInv.x * domain.y,
-		domainInv.x * domainInv.y,
-		domain.x * domainInv.y
-	};
-
-	min16float4 result = 0.0;
-	min16float ws = 0.0;
-	[unroll]
-	//for (i = 0; i < 4; ++i) result = results[i].w > result.w ? results[i] : result;
-	for (i = 0; i < 4; ++i)
-	{
-		const min16float w = abs(depth - z[i]) < 0.01;
-		result += results[i] * wb[i];
-		ws += 1.0;
-	}
-	result *= 4.0 / ws;
-#endif
-	
-	//if (result.w <= 0.0) discard;
-
-	return min16float4(abs(result.xyz - ref.xyz) * 32.0, result.w);
+	return CubeCast(input.Pos.xy, uvw, pos, rayDir);
 }
