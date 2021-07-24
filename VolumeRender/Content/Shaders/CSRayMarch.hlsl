@@ -76,7 +76,7 @@ float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	float3 rayOrigin = mul(g_eyePos, g_worldI).xyz;
+	float3 rayOrigin = mul(g_eyePos, g_worldI);
 	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
 
 	const float3 target = GetLocalPos(DTid.xy, DTid.z, g_rwCubeMap);
@@ -91,7 +91,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	const float tMax = GetTMax(pos, rayOrigin, rayDir);
 	
 #ifdef _POINT_LIGHT_
-	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;
+	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI);
 #else
 	const float3 localSpaceLightPt = mul(g_lightPos.xyz, (float3x3)g_worldI);
 	const float3 lightStep = normalize(localSpaceLightPt) * g_lightStepScale;
