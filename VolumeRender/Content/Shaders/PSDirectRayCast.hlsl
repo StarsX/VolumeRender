@@ -42,7 +42,7 @@ float3 GetClipPos(uint2 idx, float2 uv)
 min16float4 main(PSIn input) : SV_TARGET
 {
 	float3 rayOrigin = TexcoordToLocalPos(input.UV);	// The point on the near plane
-	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI).xyz;
+	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI);
 
 	const float3 rayDir = normalize(rayOrigin - localSpaceEyePt);
 	if (!ComputeRayOrigin(rayOrigin, rayDir)) discard;
@@ -52,7 +52,7 @@ min16float4 main(PSIn input) : SV_TARGET
 	const float tMax = GetTMax(pos, rayOrigin, rayDir);
 
 #ifdef _POINT_LIGHT_
-	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;
+	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI);
 #else
 	const float3 localSpaceLightPt = mul(g_lightPos.xyz, (float3x3)g_worldI);
 	const float3 lightStep = normalize(localSpaceLightPt) * g_lightStepScale;

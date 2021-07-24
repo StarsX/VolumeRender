@@ -22,8 +22,8 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	rayOrigin.xyz = (DTid + 0.5) / gridSize * 2.0 - 1.0;
 	rayOrigin.w = 1.0;
 
-	rayOrigin = mul(rayOrigin, g_lightMapWorld);	// Light-map space to world space
-	rayOrigin = mul(rayOrigin, g_worldI);			// World space to volume space
+	rayOrigin.xyz = mul(rayOrigin, g_lightMapWorld);	// Light-map space to world space
+	rayOrigin.xyz = mul(rayOrigin, g_worldI);			// World space to volume space
 
 	// Transmittance
 	min16float shadow = ShadowTest(rayOrigin.xyz, g_txDepth);
@@ -37,7 +37,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	}*/
 
 #ifdef _POINT_LIGHT_
-	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI).xyz;
+	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI);
 	const float3 rayDir = normalize(localSpaceLightPt - rayOrigin.xyz);
 #else
 	const float3 localSpaceLightPt = mul(g_lightPos.xyz, (float3x3)g_worldI);

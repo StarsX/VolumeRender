@@ -119,6 +119,6 @@ protected:
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;
 	DirectX::XMFLOAT4		m_ambient;
-	DirectX::XMFLOAT4X4		m_volumeWorld;
-	DirectX::XMFLOAT4X4		m_lightMapWorld;
+	DirectX::XMFLOAT3X4		m_volumeWorld;
+	DirectX::XMFLOAT3X4		m_lightMapWorld;
 };
