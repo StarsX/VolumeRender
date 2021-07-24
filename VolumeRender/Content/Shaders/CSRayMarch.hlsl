@@ -113,7 +113,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	{
 		const float3 pos = rayOrigin + rayDir * t;
 		if (any(abs(pos) > 1.0)) break;
-		const float3 uvw = pos * 0.5 + 0.5;
+		const float3 uvw = LocalToTex3DSpace(pos);
 
 		// Get a sample
 		min16float4 color = GetSample(uvw);
@@ -121,17 +121,17 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		// Skip empty space
 		if (color.w > ZERO_THRESHOLD)
 		{
-			// Point light direction in texture space
 #ifdef _POINT_LIGHT_
+			// Point light direction in texture space
 			const float3 lightStep = normalize(localSpaceLightPt - pos) * g_lightStepScale;
 #endif
-
 			// Sample light
 			const float3 light = GetLight(pos, lightStep);
 
 			// Accumulate color
 			color.w = GetOpacity(color.w, g_stepScale);
 			color.xyz *= transm * color.w;
+
 			//scatter += color.xyz;
 			scatter += min16float3(light) * color.xyz;
 

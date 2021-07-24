@@ -108,6 +108,14 @@ bool ComputeRayOrigin(inout float3 rayOrigin, float3 rayDir)
 }
 
 //--------------------------------------------------------------------------------------
+// Local position to texture space
+//--------------------------------------------------------------------------------------
+float3 LocalToTex3DSpace(float3 pos)
+{
+	return pos * 0.5 + 0.5;
+}
+
+//--------------------------------------------------------------------------------------
 // Get light
 //--------------------------------------------------------------------------------------
 #ifdef _LIGHT_PASS_
@@ -129,7 +137,7 @@ float3 GetLight(float3 pos, float3 step)
 			// Update position along light ray
 			pos += step;
 			if (any(abs(pos) > 1.0)) break;
-			const float3 uvw = pos * 0.5 + 0.5;
+			const float3 uvw = LocalToTex3DSpace(pos);
 
 			// Get a sample along light ray
 			const min16float density = GetSample(uvw).w;

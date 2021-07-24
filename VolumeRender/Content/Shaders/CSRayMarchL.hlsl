@@ -34,8 +34,8 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	min16float shadow = ShadowTest(rayOrigin.xyz, g_txDepth);
 
 	float3 uvw = rayOrigin.xyz * 0.5 + 0.5;
-	min16float density;// = GetSample(uvw).w;
-	/*if (density < ZERO_THRESHOLD)
+	/*const min16float density = GetSample(uvw).w;
+	if (density < ZERO_THRESHOLD)
 	{
 		g_rwLightMap[DTid] = 0.0;
 		return;
@@ -56,10 +56,10 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		{
 			const float3 pos = rayOrigin.xyz + rayDir * t;
 			if (any(abs(pos) > 1.0)) break;
-			uvw = pos * 0.5 + 0.5;
+			uvw = LocalToTex3DSpace(pos);
 
 			// Get a sample along light ray
-			density = GetSample(uvw).w;
+			const min16float density = GetSample(uvw).w;
 
 			// Attenuate ray-throughput along light direction
 			shadow *= 1.0 - GetOpacity(density, g_stepScale);
