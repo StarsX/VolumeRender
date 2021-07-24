@@ -34,8 +34,6 @@ public:
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, DirectX::CXMMATRIX shadowVP, const DirectX::XMFLOAT3& eyePt);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, uint8_t flags = OPTIMIZED);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void rayCastDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void rayCastVDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
@@ -83,8 +81,10 @@ protected:
 
 	void rayMarch(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void rayMarchV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void rayCast(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void renderCube(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastCube(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastVDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::Device::sptr m_device;
 

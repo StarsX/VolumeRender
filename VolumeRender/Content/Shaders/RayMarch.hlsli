@@ -26,9 +26,11 @@ Texture3D<float4> g_txGrid;
 Texture3D<float3> g_txLightMap;
 #endif
 
+#ifdef _HAS_DEPTH_MAP_
 Texture2D<float> g_txDepth;
+#endif
 
-#ifndef _LIGHT_PASS_
+#if defined(_HAS_SHADOW_MAP_) && !defined(_LIGHT_PASS_)
 Texture2D<float> g_txShadow;
 #endif
 
@@ -37,8 +39,11 @@ Texture2D<float> g_txShadow;
 //--------------------------------------------------------------------------------------
 min16float4 GetSample(float3 uvw)
 {
-	return min16float4(g_txGrid.SampleLevel(g_smpLinear, uvw, 0.0));
-	//return min16float4(0.0, 0.5, 1.0, 0.5);
+	min16float4 color = min16float4(g_txGrid.SampleLevel(g_smpLinear, uvw, 0.0));
+	//min16float4 color = min16float4(0.0, 0.5, 1.0, 0.5);
+	color.w *= DENSITY_SCALE;
+
+	return color;
 }
 
 //--------------------------------------------------------------------------------------
@@ -65,6 +70,7 @@ float GetTMax(float3 pos, float3 rayOrigin, float3 rayDir)
 //--------------------------------------------------------------------------------------
 // Get occluded end point
 //--------------------------------------------------------------------------------------
+#ifdef _HAS_SHADOW_MAP_
 min16float ShadowTest(float3 pos, Texture2D<float> txDepth)
 {
 	const float3 lsPos = mul(float4(pos, 1.0), g_shadowWVP).xyz;
@@ -75,6 +81,7 @@ min16float ShadowTest(float3 pos, Texture2D<float> txDepth)
 
 	return lsPos.z < depth;
 }
+#endif
 
 //--------------------------------------------------------------------------------------
 // Compute start point of the ray
@@ -113,7 +120,11 @@ bool ComputeRayOrigin(inout float3 rayOrigin, float3 rayDir)
 //--------------------------------------------------------------------------------------
 float3 LocalToTex3DSpace(float3 pos)
 {
+#ifdef _TEXCOORD_INVERT_Y_
+	return pos * float3(0.5, -0.5, 0.5) + 0.5;
+#else
 	return pos * 0.5 + 0.5;
+#endif
 }
 
 //--------------------------------------------------------------------------------------
@@ -129,7 +140,12 @@ float3 GetLight(float3 pos, float3 step)
 #else
 float3 GetLight(float3 pos, float3 step)
 {
-	min16float shadow = ShadowTest(pos, g_txShadow); // Transmittance along light ray
+	// Transmittance along light ray
+#ifdef _HAS_SHADOW_MAP_
+	min16float shadow = ShadowTest(pos, g_txShadow);
+#else
+	min16float shadow = 1.0;
+#endif
 
 	if (shadow > 0.0)
 	{
