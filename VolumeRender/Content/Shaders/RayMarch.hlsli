@@ -129,7 +129,12 @@ float3 GetLight(float3 pos, float3 step)
 #else
 float3 GetLight(float3 pos, float3 step)
 {
-	min16float shadow = ShadowTest(pos, g_txShadow); // Transmittance along light ray
+	// Transmittance along light ray
+#if _HAS_SHADOW_MAP_
+	min16float shadow = ShadowTest(pos, g_txShadow);
+#else
+	min16float shadow = 1.0;
+#endif
 
 	if (shadow > 0.0)
 	{

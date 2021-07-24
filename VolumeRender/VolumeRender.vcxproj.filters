@@ -153,7 +153,7 @@
     <FxCompile Include="Content\Shaders\CSRayMarchV.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\PSRayCast.hlsl">
+    <FxCompile Include="Content\Shaders\PSRayCastCube.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\CSGenParticle.hlsl">
@@ -177,10 +177,10 @@
     <FxCompile Include="Content\Shaders\CSR32FToRGBA16F.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\PSDirectRayCast.hlsl">
+    <FxCompile Include="Content\Shaders\PSRayCast.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\PSDirectRayCastV.hlsl">
+    <FxCompile Include="Content\Shaders\PSRayCastV.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\VSBasePass.hlsl">

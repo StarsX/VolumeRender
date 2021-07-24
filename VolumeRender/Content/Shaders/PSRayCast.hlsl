@@ -2,11 +2,8 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#include "PSCube.hlsli"
+#include "RayMarch.hlsli"
 
-//--------------------------------------------------------------------------------------
-// Structure
-//--------------------------------------------------------------------------------------
 struct PSIn
 {
 	float4 Pos	: SV_POSITION;
@@ -23,88 +20,91 @@ float3 TexcoordToLocalPos(float2 uv)
 	pos.zw = float2(0.0, 1.0);
 	pos.y = -pos.y;
 	pos = mul(pos, g_worldViewProjI);
-	
+
 	return pos.xyz / pos.w;
 }
 
 //--------------------------------------------------------------------------------------
-// Compute end point of the ray on the cube surface
+// Get clip-space position
 //--------------------------------------------------------------------------------------
-uint ComputeRayHit(inout float3 pos, float3 rayDir)
+#if _HAS_DEPTH_MAP_
+float3 GetClipPos(uint2 idx, float2 uv)
 {
-	//float U = asfloat(0x7f800000);	// INF
-	float U = 3.402823466e+38;			// FLT_MAX
-	uint hitPlane = 0xffffffff;
+	const float z = g_txDepth[idx];
+	float2 xy = uv * 2.0 - 1.0;
+	xy.y = -xy.y;
 
-	[unroll]
-	for (uint i = 0; i < 3; ++i)
-	{
-		const float u = (sign(rayDir[i]) - pos[i]) / rayDir[i];
-		if (u < 0.0) continue;
-
-		const uint j = (i + 1) % 3, k = (i + 2) % 3;
-		if (abs(rayDir[j] * u + pos[j]) > 1.0) continue;
-		if (abs(rayDir[k] * u + pos[k]) > 1.0) continue;
-		if (u < U)
-		{
-			U = u;
-			hitPlane = i;
-		}
-	}
-
-	//pos = clamp(rayDir * U + pos, -1.0, 1.0);
-	pos = rayDir * U + pos;
-
-	return hitPlane;
+	return float3(xy, z);
 }
-
-//--------------------------------------------------------------------------------------
-// Compute texcoord
-//--------------------------------------------------------------------------------------
-float3 ComputeCubeTexcoord(float3 pos, uint hitPlane)
-{
-	float3 uvw;
-
-	switch (hitPlane)
-	{
-	case 0: // X
-		uvw.x = -pos.x * pos.z;
-		uvw.y = pos.y;
-		uvw.z = pos.x < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
-		break;
-	case 1: // Y
-		uvw.x = pos.x;
-		uvw.y = -pos.y * pos.z;
-		uvw.z = pos.y < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
-		break;
-	case 2: // Z
-		uvw.x = pos.z * pos.x;
-		uvw.y = pos.y;
-		uvw.z = pos.z < 0.0 ? hitPlane * 2 + 1 : hitPlane * 2;
-		break;
-	default:
-		uvw = 0.0;
-		break;
-	}
-	uvw.xy = uvw.xy * 0.5 + 0.5;
-	uvw.y = 1.0 - uvw.y;
-
-	return uvw;
-}
+#endif
 
 //--------------------------------------------------------------------------------------
 // Pixel Shader
 //--------------------------------------------------------------------------------------
 min16float4 main(PSIn input) : SV_TARGET
 {
-	float3 pos = TexcoordToLocalPos(input.UV);	// The point on the near plane
+	float3 rayOrigin = TexcoordToLocalPos(input.UV);	// The point on the near plane
 	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI);
-	const float3 rayDir = normalize(pos - localSpaceEyePt);
 
-	const uint hitPlane = ComputeRayHit(pos, rayDir);
-	if (hitPlane > 2) discard;
+	const float3 rayDir = normalize(rayOrigin - localSpaceEyePt);
+	if (!ComputeRayOrigin(rayOrigin, rayDir)) discard;
 
-	const float3 uvw = ComputeCubeTexcoord(pos, hitPlane);
+#if _HAS_DEPTH_MAP_
+	// Calculate occluded end point
+	const float3 pos = GetClipPos(input.Pos.xy, input.UV);
+	const float tMax = GetTMax(pos, rayOrigin, rayDir);
+#endif
 
-	return CubeCast(input.Pos.xy, uvw, pos, rayDir);
+#ifdef _POINT_LIGHT_
+	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI);
+#else
+	const float3 localSpaceLightPt = mul(g_lightPos.xyz, (float3x3)g_worldI);
+	const float3 lightStep = normalize(localSpaceLightPt) * g_lightStepScale;
+#endif
+
+	// Transmittance
+	min16float transm = 1.0;
+
+	// In-scattered radiance
+	min16float3 scatter = 0.0;
+
+	float t = 0.0;
+	for (uint i = 0; i < NUM_SAMPLES; ++i)
+	{
+		const float3 pos = rayOrigin + rayDir * t;
+		if (any(abs(pos) > 1.0)) break;
+		const float3 uvw = LocalToTex3DSpace(pos);
+
+		// Get a sample
+		min16float4 color = GetSample(uvw);
+
+		// Skip empty space
+		if (color.w > ZERO_THRESHOLD)
+		{
+#ifdef _POINT_LIGHT_
+			// Point light direction in texture space
+			const float3 lightStep = normalize(g_localSpaceLightPt - pos) * g_lightStepScale;
+#endif
+			// Sample light
+			const float3 light = GetLight(pos, lightStep);
+			
+			// Accumulate color
+			color.w = GetOpacity(color.w, g_stepScale);
+			color.xyz *= transm * color.w;
+
+			//scatter += color.xyz;
+			scatter += min16float3(light) * color.xyz;
+
+			// Attenuate ray-throughput
+			transm *= 1.0 - color.w;
+			if (transm < ZERO_THRESHOLD) break;
+		}
+
+		t += max(1.5 * g_stepScale * t, g_stepScale);
+#if _HAS_DEPTH_MAP_
+		if (t > tMax) break;
+#endif
+	}
+
+	return min16float4(scatter, 1.0 - transm);
 }
