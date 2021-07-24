@@ -5,12 +5,7 @@
 #include "RayMarch.hlsli"
 
 //--------------------------------------------------------------------------------------
-// Constants
-//--------------------------------------------------------------------------------------
-static const min16float g_stepScale = g_maxDist / NUM_LIGHT_SAMPLES;
-
-//--------------------------------------------------------------------------------------
-// Textures
+// Unordered access texture
 //--------------------------------------------------------------------------------------
 RWTexture3D<float3> g_rwLightMap;
 
@@ -62,11 +57,11 @@ void main(uint3 DTid : SV_DispatchThreadID)
 			const min16float density = GetSample(uvw).w;
 
 			// Attenuate ray-throughput along light direction
-			shadow *= 1.0 - GetOpacity(density, g_stepScale);
+			shadow *= 1.0 - GetOpacity(density, g_lightStepScale);
 			if (shadow < ZERO_THRESHOLD) break;
 
 			// Update position along light ray
-			t += g_stepScale;
+			t += g_lightStepScale;
 		}
 	}
 

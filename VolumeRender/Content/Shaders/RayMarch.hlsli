@@ -14,6 +14,7 @@
 // Constants
 //--------------------------------------------------------------------------------------
 static const min16float g_maxDist = 2.0 * sqrt(3.0);
+static const min16float g_stepScale = g_maxDist / NUM_SAMPLES;
 static const min16float g_lightStepScale = g_maxDist / NUM_LIGHT_SAMPLES;
 
 //--------------------------------------------------------------------------------------
