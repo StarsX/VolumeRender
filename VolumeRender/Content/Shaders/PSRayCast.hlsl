@@ -27,7 +27,7 @@ float3 TexcoordToLocalPos(float2 uv)
 //--------------------------------------------------------------------------------------
 // Get clip-space position
 //--------------------------------------------------------------------------------------
-#if _HAS_DEPTH_MAP_
+#ifdef _HAS_DEPTH_MAP_
 float3 GetClipPos(uint2 idx, float2 uv)
 {
 	const float z = g_txDepth[idx];
@@ -49,7 +49,7 @@ min16float4 main(PSIn input) : SV_TARGET
 	const float3 rayDir = normalize(rayOrigin - localSpaceEyePt);
 	if (!ComputeRayOrigin(rayOrigin, rayDir)) discard;
 
-#if _HAS_DEPTH_MAP_
+#ifdef _HAS_DEPTH_MAP_
 	// Calculate occluded end point
 	const float3 pos = GetClipPos(input.Pos.xy, input.UV);
 	const float tMax = GetTMax(pos, rayOrigin, rayDir);
@@ -101,10 +101,14 @@ min16float4 main(PSIn input) : SV_TARGET
 		}
 
 		t += max(1.5 * g_stepScale * t, g_stepScale);
-#if _HAS_DEPTH_MAP_
+#ifdef _HAS_DEPTH_MAP_
 		if (t > tMax) break;
 #endif
 	}
 
+#ifdef _GAMMA_
+	return min16float4(sqrt(scatter), 1.0 - transm);
+#else
 	return min16float4(scatter, 1.0 - transm);
+#endif
 }

@@ -26,7 +26,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	rayOrigin.xyz = mul(rayOrigin, g_worldI);			// World space to volume space
 
 	// Transmittance
-#if _HAS_SHADOW_MAP_
+#ifdef _HAS_SHADOW_MAP_
 	min16float shadow = ShadowTest(rayOrigin.xyz, g_txDepth);
 #else
 	min16float shadow = 1.0;
