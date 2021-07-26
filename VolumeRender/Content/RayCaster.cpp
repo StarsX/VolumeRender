@@ -24,6 +24,14 @@ struct CBPerObject
 	XMFLOAT4 Ambient;
 };
 
+static inline bool IsSliceVisible(uint32_t slice, float* localSpaceEyePt)
+{
+	const auto plane = slice >> 1;
+	const auto viewComp = localSpaceEyePt[plane];
+
+	return (slice & 0x1) ? viewComp > -1.0f : viewComp < 1.0f;
+}
+
 RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
 	m_lightPt(75.0f, 75.0f, -75.0f),

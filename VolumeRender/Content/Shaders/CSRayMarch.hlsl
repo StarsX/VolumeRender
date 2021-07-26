@@ -43,12 +43,12 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
 //--------------------------------------------------------------------------------------
 // Check the visibility of the slice
 //--------------------------------------------------------------------------------------
-bool IsVisible(uint slice, float3 target, float3 localSpaceEyePt)
+bool IsVisible(uint slice, float3 localSpaceEyePt)
 {
 	const uint plane = slice >> 1;
-	const float viewComp = localSpaceEyePt[plane] - target[plane];
+	const float viewComp = localSpaceEyePt[plane];
 
-	return (slice & 0x1) ? viewComp > 0.0 : viewComp < 0.0;
+	return (slice & 0x1) ? viewComp > -1.0 : viewComp < 1.0;
 }
 
 //--------------------------------------------------------------------------------------
@@ -78,10 +78,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
 {
 	float3 rayOrigin = mul(g_eyePos, g_worldI);
 	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
+	if (!IsVisible(DTid.z, rayOrigin)) return;
 
 	const float3 target = GetLocalPos(DTid.xy, DTid.z, g_rwCubeMap);
-	if (!IsVisible(DTid.z, target, rayOrigin)) return;
-
 	const float3 rayDir = normalize(target - rayOrigin);
 	if (!ComputeRayOrigin(rayOrigin, rayDir)) return;
 
