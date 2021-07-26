@@ -16,6 +16,7 @@ struct VSOut
 	float4	Pos		: SV_POSITION;
 	float3	WSPos	: POSWORLD;
 	float3	Norm	: NORMAL;
+	float4	LSPos	: POSLIGHT;
 };
 
 //--------------------------------------------------------------------------------------
@@ -23,8 +24,9 @@ struct VSOut
 //--------------------------------------------------------------------------------------
 cbuffer cbPerObject
 {
-	matrix	g_worldViewProj;
+	float4x4 g_worldViewProj;
 	float4x3 g_world;
+	float4x4 g_shadowWVP;
 };
 
 //--------------------------------------------------------------------------------------
@@ -38,6 +40,7 @@ VSOut main(VSIn input)
 	output.Pos = mul(pos, g_worldViewProj);
 	output.WSPos = mul(pos, g_world);
 	output.Norm = mul(input.Nrm, (float3x3)g_world);
+	output.LSPos = mul(pos, g_shadowWVP);
 
 	return output;
 }

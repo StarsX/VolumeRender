@@ -28,7 +28,7 @@ RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
-	m_ambient(0.0f, 0.3f, 1.0f, 0.3f)
+	m_ambient(0.0f, 0.3f, 1.0f, 0.4f)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
 	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device.get());
@@ -329,10 +329,12 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
-		pipelineLayout->SetRange(1, DescriptorType::SRV, 3, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
+		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[CUBE], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"CubeLayout"), false);
 	}
@@ -341,11 +343,13 @@ bool RayCaster::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
-		pipelineLayout->SetRange(1, DescriptorType::SRV, 3, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
+		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayCastingLayout"), false);
 	}
@@ -510,8 +514,6 @@ bool RayCaster::createPipelines(Format rtFormat)
 
 bool RayCaster::createDescriptorTables()
 {
-	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 28);
-
 	// Create CBV tables
 	for (uint8_t i = 0; i < FrameCount; ++i)
 	{
@@ -571,16 +573,19 @@ bool RayCaster::createDescriptorTables()
 		X_RETURN(m_srvTables[SRV_TABLE_CUBE_MAP], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
+	if (m_pDepths[DEPTH_MAP])
 	{
-		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_pDepths[DEPTH_MAP]->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_DEPTH], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
-	}
+		{
+			const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+			descriptorTable->SetDescriptors(0, 1, &m_pDepths[DEPTH_MAP]->GetSRV());
+			X_RETURN(m_srvTables[SRV_TABLE_DEPTH], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		}
 
-	{
-		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_pDepths[SHADOW_MAP]->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_SHADOW], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		{
+			const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+			descriptorTable->SetDescriptors(0, 1, &m_pDepths[SHADOW_MAP]->GetSRV());
+			X_RETURN(m_srvTables[SRV_TABLE_SHADOW], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		}
 	}
 
 	// Create UAV table
@@ -660,7 +665,8 @@ void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_CUBE_MAP]);
-	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
+	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
+	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
 
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
 	pCommandList->Draw(4, 6, 0, 0);
@@ -682,7 +688,8 @@ void RayCaster::rayCastCube(const CommandList* pCommandList, uint8_t frameIndex)
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_CUBE_MAP]);
-	pCommandList->SetGraphicsDescriptorTable(2, m_samplerTable);
+	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
+	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }
