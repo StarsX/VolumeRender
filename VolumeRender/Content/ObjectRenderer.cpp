@@ -29,7 +29,7 @@ ObjectRenderer::ObjectRenderer(const Device::sptr& device) :
 	m_shadowMapSize(1024),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
-	m_ambient(0.0f, 0.3f, 1.0f, 0.3f)
+	m_ambient(0.0f, 0.3f, 1.0f, 0.4f)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
 	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device.get());
@@ -57,7 +57,7 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 
 	// Create resources
 	const auto smFormat = Format::D16_UNORM;
-	for (auto& depth : m_depths) depth = DepthStencil::MakeUnique();
+	m_depths[SHADOW_MAP] = DepthStencil::MakeUnique();
 	N_RETURN(m_depths[SHADOW_MAP]->Create(m_device.get(), m_shadowMapSize, m_shadowMapSize,
 		smFormat, ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Shadow"), false);
 
@@ -74,13 +74,12 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 		nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBPerFrame"), false);
 
 	// Create window size-dependent resource
-	N_RETURN(SetViewport(width, height, dsFormat), false);
+	//N_RETURN(SetViewport(width, height, dsFormat), false);
 
 	// Create pipelines
 	N_RETURN(createInputLayout(), false);
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(rtFormat, dsFormat, smFormat), false);
-	N_RETURN(createDescriptorTables(), false);
 
 	return true;
 }
@@ -90,8 +89,11 @@ bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format dsForma
 	m_viewport = XMUINT2(width, height);
 
 	// Recreate window size-dependent resource
-	return m_depths[DEPTH_MAP]->Create(m_device.get(), width, height, dsFormat,
-		ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Depth");
+	m_depths[DEPTH_MAP] = DepthStencil::MakeUnique();
+	N_RETURN(m_depths[DEPTH_MAP]->Create(m_device.get(), width, height, dsFormat,
+		ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Depth"), false);
+
+	return createDescriptorTables();
 }
 
 void ObjectRenderer::SetLight(const XMFLOAT3& pos, const XMFLOAT3& color, float intensity)
@@ -176,6 +178,7 @@ void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
 	// Set descriptor tables
 	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject.get(), m_cbPerObject->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsRootConstantBufferView(1, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_SHADOW]);
 
 	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
 	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
@@ -249,9 +252,16 @@ bool ObjectRenderer::createPipelineLayouts()
 
 	// Base pass
 	{
+		const auto samplerShadow = m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_LESS_EQUAL);
+
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRootCBV(0, 0, 0, Shader::VS);
 		pipelineLayout->SetRootCBV(1, 0, 0, Shader::PS);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetStaticSamplers(&samplerShadow, 1, 0, 0, Shader::PS);
+		pipelineLayout->SetShaderStage(0, Shader::VS);
+		pipelineLayout->SetShaderStage(1, Shader::PS);
+		pipelineLayout->SetShaderStage(2, Shader::PS);
 		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
@@ -259,7 +269,7 @@ bool ObjectRenderer::createPipelineLayouts()
 	return true;
 }
 
-bool ObjectRenderer::createPipelines(Format rtFormat, Format dsFormat, XUSG::Format dsFormatH)
+bool ObjectRenderer::createPipelines(Format rtFormat, Format dsFormat, Format dsFormatH)
 {
 	auto vsIndex = 0u;
 	auto psIndex = 0u;
@@ -300,6 +310,19 @@ bool ObjectRenderer::createPipelines(Format rtFormat, Format dsFormat, XUSG::For
 
 bool ObjectRenderer::createDescriptorTables()
 {
+	// Create SRV tables
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_depths[DEPTH_MAP]->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_DEPTH], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_depths[SHADOW_MAP]->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_SHADOW], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
 	return true;
 }
 

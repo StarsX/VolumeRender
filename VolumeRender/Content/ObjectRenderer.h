@@ -48,6 +48,22 @@ protected:
 		NUM_PIPELINE
 	};
 
+	enum CbvTable : uint8_t
+	{
+		CBV_TABLE_PEROBJECT,
+		CBV_TABLE_PERFRAME,
+
+		NUM_CBV_TABLE
+	};
+
+	enum SrvTable : uint8_t
+	{
+		SRV_TABLE_DEPTH,
+		SRV_TABLE_SHADOW,
+
+		NUM_SRV_TABLE
+	};
+
 	bool createVB(XUSG::CommandList* pCommandList, uint32_t numVert,
 		uint32_t stride, const uint8_t* pData, std::vector<XUSG::Resource::uptr>& uploaders);
 	bool createIB(XUSG::CommandList* pCommandList, uint32_t numIndices,
@@ -71,8 +87,7 @@ protected:
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
 
-	XUSG::DescriptorTable	m_cbvTables[FrameCount];
-	//XUSG::DescriptorTable	m_samplerTable;
+	XUSG::DescriptorTable	m_srvTables[NUM_SRV_TABLE];
 
 	XUSG::VertexBuffer::uptr	m_vertexBuffer;
 	XUSG::IndexBuffer::uptr		m_indexBuffer;

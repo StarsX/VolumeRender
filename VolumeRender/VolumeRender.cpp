@@ -141,6 +141,7 @@ void VolumeRender::LoadAssets()
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
 	vector<Resource::uptr> uploaders(0);
+	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 27, 0);
 	m_objectRenderer = make_unique<ObjectRenderer>(m_device);
 	if (!m_objectRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
@@ -186,6 +187,7 @@ void VolumeRender::LoadAssets()
 	}
 
 	// Create window size dependent resources.
+	//m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
 	CreateResources();
 
 	// Projection
@@ -487,7 +489,7 @@ void VolumeRender::PopulateCommandList()
 	const auto pShadow = m_objectRenderer->GetDepthMap(ObjectRenderer::SHADOW_MAP);
 	auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = pDepth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
-	numBarriers = pShadow->SetBarrier(barriers, ResourceState::DEPTH_READ, numBarriers);
+	numBarriers = pShadow->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target
