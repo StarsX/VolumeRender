@@ -115,6 +115,9 @@ protected:
 
 	uint32_t				m_gridSize;
 	uint32_t				m_lightGridSize;
+#if _CPU_SLICE_CULL_ == 1
+	uint32_t				m_visibilityMask;
+#endif
 
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;

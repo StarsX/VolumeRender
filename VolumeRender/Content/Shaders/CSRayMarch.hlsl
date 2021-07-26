@@ -2,7 +2,18 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#include "SharedConsts.h"
 #include "RayMarch.hlsli"
+
+//--------------------------------------------------------------------------------------
+// Constant buffer
+//--------------------------------------------------------------------------------------
+#if _CPU_SLICE_CULL_ == 1
+cbuffer cb
+{
+	uint g_visibilityMask;
+};
+#endif
 
 //--------------------------------------------------------------------------------------
 // Unordered access textures
@@ -76,9 +87,14 @@ float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
+#if _CPU_SLICE_CULL_ == 1
+	if ((g_visibilityMask & (1 << DTid.z)) == 0) return;
+#endif
 	float3 rayOrigin = mul(g_eyePos, g_worldI);
 	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
+#if !defined(_CPU_SLICE_CULL_) || _CPU_SLICE_CULL_ == 0
 	if (!IsVisible(DTid.z, rayOrigin)) return;
+#endif
 
 	const float3 target = GetLocalPos(DTid.xy, DTid.z, g_rwCubeMap);
 	const float3 rayDir = normalize(target - rayOrigin);
