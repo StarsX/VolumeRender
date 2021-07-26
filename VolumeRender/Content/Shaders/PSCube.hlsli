@@ -105,9 +105,5 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 
 	if (result.w <= 0.0) discard;
 
-#ifdef _GAMMA_
-	return min16float4(sqrt(result.xyz), result.w);
-#else
-	return min16float4(result.xyz, result.w);
-#endif
+	return min16float4(result);
 }

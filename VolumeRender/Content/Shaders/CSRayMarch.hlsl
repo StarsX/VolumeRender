@@ -125,7 +125,10 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
 			// Accumulate color
 			color.w = GetOpacity(color.w, g_stepScale);
-			color.xyz *= transm * color.w;
+			color.xyz *= transm;
+#ifndef _PRE_MULTIPLIED_
+			color.xyz *= color.w;
+#endif
 
 			//scatter += color.xyz;
 			scatter += min16float3(light) * color.xyz;

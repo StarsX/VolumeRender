@@ -5,7 +5,9 @@
 #define _HAS_DEPTH_MAP_
 #define _HAS_SHADOW_MAP_
 
-#define DENSITY_SCALE 1.0
+#define	INF				asfloat(0x7f800000)
+#define	FLT_MAX			3.402823466e+38
+#define DENSITY_SCALE	1.0
 
 //--------------------------------------------------------------------------------------
 // Constant buffer

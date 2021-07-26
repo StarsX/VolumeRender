@@ -41,9 +41,6 @@ min16float4 GetSample(float3 uvw)
 {
 	min16float4 color = min16float4(g_txGrid.SampleLevel(g_smpLinear, uvw, 0.0));
 	//min16float4 color = min16float4(0.0, 0.5, 1.0, 0.5);
-#ifdef _PRE_MULTIPLIED_
-	color.xyz /= color.w;
-#endif
 	color.w *= DENSITY_SCALE;
 
 	return color;
@@ -62,6 +59,8 @@ min16float GetOpacity(min16float density, min16float stepScale)
 //--------------------------------------------------------------------------------------
 float GetTMax(float3 pos, float3 rayOrigin, float3 rayDir)
 {
+	if (pos.z >= 1.0) return FLT_MAX;
+
 	const float4 hpos = mul(float4(pos, 1.0), g_worldViewProjI);
 	pos = hpos.xyz / hpos.w;
 
@@ -93,8 +92,8 @@ bool ComputeRayOrigin(inout float3 rayOrigin, float3 rayDir)
 {
 	if (all(abs(rayOrigin) <= 1.0)) return true;
 
-	//float U = asfloat(0x7f800000);	// INF
-	float U = 3.402823466e+38;			// FLT_MAX
+	//float U = INF;
+	float U = FLT_MAX;
 	bool isHit = false;
 
 	[unroll]

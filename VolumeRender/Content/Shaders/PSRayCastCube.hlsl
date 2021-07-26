@@ -32,8 +32,8 @@ float3 TexcoordToLocalPos(float2 uv)
 //--------------------------------------------------------------------------------------
 uint ComputeRayHit(inout float3 pos, float3 rayDir)
 {
-	//float U = asfloat(0x7f800000);	// INF
-	float U = 3.402823466e+38;			// FLT_MAX
+	//float U = INF;
+	float U = FLT_MAX;
 	uint hitPlane = 0xffffffff;
 
 	[unroll]
