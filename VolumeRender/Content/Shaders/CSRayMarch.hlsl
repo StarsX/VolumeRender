@@ -13,6 +13,11 @@ cbuffer cb
 {
 	uint g_visibilityMask;
 };
+#elif _CPU_SLICE_CULL_ == 2
+cbuffer cb
+{
+	uint g_slices[5];
+};
 #endif
 
 //--------------------------------------------------------------------------------------
@@ -89,9 +94,13 @@ void main(uint3 DTid : SV_DispatchThreadID)
 {
 #if _CPU_SLICE_CULL_ == 1
 	if ((g_visibilityMask & (1 << DTid.z)) == 0) return;
+#elif _CPU_SLICE_CULL_ == 2
+	DTid.z = g_slices[DTid.z];
 #endif
+
 	float3 rayOrigin = mul(g_eyePos, g_worldI);
 	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
+
 #if !defined(_CPU_SLICE_CULL_) || _CPU_SLICE_CULL_ == 0
 	if (!IsVisible(DTid.z, rayOrigin)) return;
 #endif

@@ -29,7 +29,7 @@ struct CBPerObject
 static_assert(_CPU_SLICE_CULL_ == 0 || _CPU_SLICE_CULL_ == 1 || _CPU_SLICE_CULL_ == 2, "_CPU_SLICE_CULL_ can only be 0, 1, or 2");
 #endif
 
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_SLICE_CULL_
 static inline bool IsSliceVisible(uint32_t slice, const float* localSpaceEyePt)
 {
 	const auto plane = slice >> 1;
@@ -37,7 +37,9 @@ static inline bool IsSliceVisible(uint32_t slice, const float* localSpaceEyePt)
 
 	return (slice & 0x1) ? viewComp > -1.0f : viewComp < 1.0f;
 }
+#endif
 
+#if _CPU_SLICE_CULL_ == 1
 static inline uint32_t GenVisibilityMask(CXMMATRIX worldI, const XMFLOAT3& eyePt)
 {
 	const auto localSpaceEyePt = XMVector3Transform(XMLoadFloat3(&eyePt), worldI);
@@ -51,10 +53,33 @@ static inline uint32_t GenVisibilityMask(CXMMATRIX worldI, const XMFLOAT3& eyePt
 
 	return mask;
 }
+#elif _CPU_SLICE_CULL_ == 2
+struct CBSliceList
+{
+	XMUINT4 Slices[5];
+};
+
+static inline uint32_t GenVisibleSliceList(CBSliceList& sliceList, CXMMATRIX worldI, const XMFLOAT3& eyePt)
+{
+	const auto localSpaceEyePt = XMVector3Transform(XMLoadFloat3(&eyePt), worldI);
+
+	auto count = 0u;
+	for (uint8_t i = 0; i < 6; ++i)
+	{
+		if (IsSliceVisible(i, localSpaceEyePt.m128_f32))
+		{
+			assert(count < 5);
+			sliceList.Slices[count++].x = i;
+		}
+	}
+
+	return count;
+}
 #endif
 
 RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
+	m_sliceCount(6),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
 	m_ambient(0.0f, 0.3f, 1.0f, 0.4f)
@@ -102,6 +127,12 @@ bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, L"RayCaster.CBPerObject"), false);
+
+#if _CPU_SLICE_CULL_ == 2
+	m_cbSliceList = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbSliceList->Create(m_device.get(), sizeof(CBSliceList[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, L"RayCaster.CBSliceList"), false);
+#endif
 
 	// Create pipelines
 	N_RETURN(createPipelineLayouts(), false);
@@ -215,22 +246,29 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 	const auto worldI = XMMatrixInverse(nullptr, world);
 	const auto worldViewProj = world * viewProj;
 
-	// Screen space matrices
-	const auto pCbPerObject = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
-	XMStoreFloat4x4(&pCbPerObject->WorldViewProj, XMMatrixTranspose(worldViewProj));
-	XMStoreFloat4x4(&pCbPerObject->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
-	XMStoreFloat4x4(&pCbPerObject->ShadowWVP, XMMatrixTranspose(world * shadowVP));
-	XMStoreFloat3x4(&pCbPerObject->WorldI, worldI);
+	{
+		// Screen space matrices
+		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
+		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(worldViewProj));
+		XMStoreFloat4x4(&pCbData->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
+		XMStoreFloat4x4(&pCbData->ShadowWVP, XMMatrixTranspose(world * shadowVP));
+		XMStoreFloat3x4(&pCbData->WorldI, worldI);
 
-	// Lighting
-	pCbPerObject->LightMapWorld = m_lightMapWorld;
-	pCbPerObject->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
-	pCbPerObject->LightPos = XMFLOAT4(m_lightPt.x, m_lightPt.y, m_lightPt.z, 1.0f);
-	pCbPerObject->LightColor = m_lightColor;
-	pCbPerObject->Ambient = m_ambient;
+		// Lighting
+		pCbData->LightMapWorld = m_lightMapWorld;
+		pCbData->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
+		pCbData->LightPos = XMFLOAT4(m_lightPt.x, m_lightPt.y, m_lightPt.z, 1.0f);
+		pCbData->LightColor = m_lightColor;
+		pCbData->Ambient = m_ambient;
+	}
 
 #if _CPU_SLICE_CULL_ == 1
 	m_visibilityMask = GenVisibilityMask(worldI, eyePt);
+#elif _CPU_SLICE_CULL_ == 2
+	{
+		const auto pCbData = reinterpret_cast<CBSliceList*>(m_cbSliceList->Map(frameIndex));
+		m_sliceCount = GenVisibleSliceList(*pCbData, worldI, eyePt);
+	}
 #endif
 }
 
@@ -333,6 +371,8 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 #if _CPU_SLICE_CULL_ == 1
 		pipelineLayout->SetConstants(4, 1, 1);
+#elif _CPU_SLICE_CULL_ == 2
+		pipelineLayout->SetRootCBV(4, 1);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayMarchingLayout"), false);
@@ -360,6 +400,8 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
 #if _CPU_SLICE_CULL_ == 1
 		pipelineLayout->SetConstants(4, 1, 1);
+#elif _CPU_SLICE_CULL_ == 2
+		pipelineLayout->SetRootCBV(4, 1);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceRayMarchingLayout"), false);
@@ -663,10 +705,12 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
 #if _CPU_SLICE_CULL_ == 1
 	pCommandList->SetCompute32BitConstant(4, m_visibilityMask);
+#elif _CPU_SLICE_CULL_ == 2
+	pCommandList->SetComputeRootConstantBufferView(4, m_cbSliceList.get(), m_cbSliceList->GetCBVOffset(frameIndex));
 #endif
 
-	// Dispatch halved cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 6);
+	// Dispatch cube
+	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), m_sliceCount);
 }
 
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
@@ -689,10 +733,12 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
 #if _CPU_SLICE_CULL_ == 1
 	pCommandList->SetCompute32BitConstant(4, m_visibilityMask);
+#elif _CPU_SLICE_CULL_ == 2
+	pCommandList->SetComputeRootConstantBufferView(4, m_cbSliceList.get(), m_cbSliceList->GetCBVOffset(frameIndex));
 #endif
 
-	// Dispatch halved cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), 6);
+	// Dispatch cube
+	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), m_sliceCount);
 }
 
 void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
