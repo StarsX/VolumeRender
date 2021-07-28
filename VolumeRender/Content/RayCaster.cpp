@@ -32,8 +32,7 @@ static_assert(_CPU_SLICE_CULL_ == 0 || _CPU_SLICE_CULL_ == 1 || _CPU_SLICE_CULL_
 #if _CPU_SLICE_CULL_
 static inline bool IsSliceVisible(uint32_t slice, const float* localSpaceEyePt)
 {
-	const auto plane = slice >> 1;
-	const auto viewComp = localSpaceEyePt[plane];
+	const auto& viewComp = localSpaceEyePt[slice >> 1];
 
 	return (slice & 0x1) ? viewComp > -1.0f : viewComp < 1.0f;
 }
