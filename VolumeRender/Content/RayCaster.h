@@ -110,11 +110,18 @@ protected:
 	XUSG::Texture2D::uptr		m_cubeDepth;
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
+#if _CPU_SLICE_CULL_ == 2
+	XUSG::ConstantBuffer::uptr	m_cbSliceList;
+#endif
 
 	const XUSG::DepthStencil::uptr* m_pDepths;
 
 	uint32_t				m_gridSize;
 	uint32_t				m_lightGridSize;
+	uint32_t				m_sliceCount;
+#if _CPU_SLICE_CULL_ == 1
+	uint32_t				m_visibilityMask;
+#endif
 
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;

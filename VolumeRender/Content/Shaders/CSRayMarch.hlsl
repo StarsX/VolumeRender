@@ -2,7 +2,23 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#include "SharedConsts.h"
 #include "RayMarch.hlsli"
+
+//--------------------------------------------------------------------------------------
+// Constant buffer
+//--------------------------------------------------------------------------------------
+#if _CPU_SLICE_CULL_ == 1
+cbuffer cb
+{
+	uint g_visibilityMask;
+};
+#elif _CPU_SLICE_CULL_ == 2
+cbuffer cb
+{
+	uint g_slices[5];
+};
+#endif
 
 //--------------------------------------------------------------------------------------
 // Unordered access textures
@@ -43,12 +59,12 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
 //--------------------------------------------------------------------------------------
 // Check the visibility of the slice
 //--------------------------------------------------------------------------------------
-bool IsVisible(uint slice, float3 target, float3 localSpaceEyePt)
+bool IsVisible(uint slice, float3 localSpaceEyePt)
 {
 	const uint plane = slice >> 1;
-	const float viewComp = localSpaceEyePt[plane] - target[plane];
+	const float viewComp = localSpaceEyePt[plane];
 
-	return (slice & 0x1) ? viewComp > 0.0 : viewComp < 0.0;
+	return (slice & 0x1) ? viewComp > -1.0 : viewComp < 1.0;
 }
 
 //--------------------------------------------------------------------------------------
@@ -76,12 +92,20 @@ float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
+#if _CPU_SLICE_CULL_ == 1
+	if ((g_visibilityMask & (1 << DTid.z)) == 0) return;
+#elif _CPU_SLICE_CULL_ == 2
+	DTid.z = g_slices[DTid.z];
+#endif
+
 	float3 rayOrigin = mul(g_eyePos, g_worldI);
 	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
 
-	const float3 target = GetLocalPos(DTid.xy, DTid.z, g_rwCubeMap);
-	if (!IsVisible(DTid.z, target, rayOrigin)) return;
+#if !defined(_CPU_SLICE_CULL_) || _CPU_SLICE_CULL_ == 0
+	if (!IsVisible(DTid.z, rayOrigin)) return;
+#endif
 
+	const float3 target = GetLocalPos(DTid.xy, DTid.z, g_rwCubeMap);
 	const float3 rayDir = normalize(target - rayOrigin);
 	if (!ComputeRayOrigin(rayOrigin, rayDir)) return;
 
