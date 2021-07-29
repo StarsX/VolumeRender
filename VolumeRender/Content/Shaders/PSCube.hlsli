@@ -10,12 +10,20 @@
 //--------------------------------------------------------------------------------------
 #if _USE_PURE_ARRAY_
 Texture2DArray<float4> g_txCubeMap;
-Texture2DArray<float> g_txCubeDepth;
 #else
 TextureCube<float4> g_txCubeMap;
+#endif
+
+#ifdef _HAS_DEPTH_MAP_
+
+#if _USE_PURE_ARRAY_
+Texture2DArray<float> g_txCubeDepth;
+#else
 TextureCube<float4> g_txCubeDepth;
 #endif
+
 Texture2D<float> g_txDepth;
+#endif
 
 //--------------------------------------------------------------------------------------
 // Unproject and return z in viewing space
@@ -62,19 +70,19 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 	uvw = pos;
 #endif
 
-#if 0
-	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
-#else
-	float depth = g_txDepth[idx];
-	const float4 r = g_txCubeMap.GatherRed(g_smpLinear, uvw);
-	const float4 g = g_txCubeMap.GatherGreen(g_smpLinear, uvw);
-	const float4 b = g_txCubeMap.GatherBlue(g_smpLinear, uvw);
-	const float4 a = g_txCubeMap.GatherAlpha(g_smpLinear, uvw);
-	const float4 z = g_txCubeDepth.GatherRed(g_smpLinear, uvw);
+	//float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
+	const float4x4 gathers =
+	{
+		g_txCubeMap.GatherRed(g_smpLinear, uvw),
+		g_txCubeMap.GatherGreen(g_smpLinear, uvw),
+		g_txCubeMap.GatherBlue(g_smpLinear, uvw),
+		g_txCubeMap.GatherAlpha(g_smpLinear, uvw)
+	};
 
-	min16float4 results[4];
-	[unroll]
-	for (uint i = 0; i < 4; ++i) results[i] = min16float4(r[i], g[i], b[i], a[i]);
+#ifdef _HAS_DEPTH_MAP_
+	const float4 z = g_txCubeDepth.GatherRed(g_smpLinear, uvw);
+	float depth = g_txDepth[idx];
+#endif
 
 	const min16float2 domain = GetDomain(uv, pos, rayDir, gridSize);
 	const min16float2 domainInv = 1.0 - domain;
@@ -86,22 +94,28 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 		domainInv.x * domainInv.y
 	};
 
+	const min16float4x4 samples = transpose(min16float4x4(gathers));
+#ifdef _HAS_DEPTH_MAP_
 	depth = UnprojectZ(depth);
+#endif
 	min16float4 result = 0.0;
 	min16float ws = 0.0;
 	[unroll]
-	for (i = 0; i < 4; ++i)
+	for (uint i = 0; i < 4; ++i)
 	{
+#ifdef _HAS_DEPTH_MAP_
 		const float zi = UnprojectZ(z[i]);
 		min16float w = min16float(max(1.0 - abs(depth - zi), 0.0));
 		w *= wb[i];
+#else
+		const min16float w = wb[i];
+#endif
 
-		result += results[i] * w;
+		result += samples[i] * w;
 		ws += w;
 	}
 
 	result /= ws > 0.0 ? ws : 1.0;
-#endif
 
 	if (result.w <= 0.0) discard;
 

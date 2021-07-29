@@ -24,7 +24,9 @@ cbuffer cb
 // Unordered access textures
 //--------------------------------------------------------------------------------------
 RWTexture2DArray<float4> g_rwCubeMap;
+#ifdef _HAS_DEPTH_MAP_
 RWTexture2DArray<float> g_rwCubeDepth;
+#endif
 
 //--------------------------------------------------------------------------------------
 // Get the local-space position of the grid surface
@@ -61,8 +63,7 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
 //--------------------------------------------------------------------------------------
 bool IsVisible(uint slice, float3 localSpaceEyePt)
 {
-	const uint plane = slice >> 1;
-	const float viewComp = localSpaceEyePt[plane];
+	const float viewComp = localSpaceEyePt[slice >> 1];
 
 	return (slice & 0x1) ? viewComp > -1.0 : viewComp < 1.0;
 }
@@ -70,6 +71,7 @@ bool IsVisible(uint slice, float3 localSpaceEyePt)
 //--------------------------------------------------------------------------------------
 // Get clip-space position
 //--------------------------------------------------------------------------------------
+#ifdef _HAS_DEPTH_MAP_
 float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 {
 	float4 hPos = float4(rayOrigin + 0.01 * rayDir, 1.0);
@@ -85,6 +87,7 @@ float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 
 	return float3(xy, z);
 }
+#endif
 
 //--------------------------------------------------------------------------------------
 // Compute Shader
@@ -109,10 +112,12 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	const float3 rayDir = normalize(target - rayOrigin);
 	if (!ComputeRayOrigin(rayOrigin, rayDir)) return;
 
+#ifdef _HAS_DEPTH_MAP_
 	// Calculate occluded end point
 	const float3 pos = GetClipPos(rayOrigin, rayDir);
 	g_rwCubeDepth[DTid] = pos.z;
 	const float tMax = GetTMax(pos, rayOrigin, rayDir);
+#endif
 	
 #ifdef _POINT_LIGHT_
 	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI);
@@ -144,6 +149,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 			// Point light direction in texture space
 			const float3 lightStep = normalize(localSpaceLightPt - pos) * g_lightStepScale;
 #endif
+
 			// Sample light
 			const float3 light = GetLight(pos, lightStep);
 
@@ -163,7 +169,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		}
 
 		t += max(1.5 * g_stepScale * t, g_stepScale);
+#ifdef _HAS_DEPTH_MAP_
 		if (t > tMax) break;
+#endif
 	}
 
 	g_rwCubeMap[DTid] = float4(scatter, 1.0 - transm);
