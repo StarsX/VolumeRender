@@ -70,7 +70,9 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 	uvw = pos;
 #endif
 
-	//float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
+#if 0
+	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
+#else
 	const float4x4 gathers =
 	{
 		g_txCubeMap.GatherRed(g_smpLinear, uvw),
@@ -116,6 +118,7 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 	}
 
 	result /= ws > 0.0 ? ws : 1.0;
+#endif
 
 	if (result.w <= 0.0) discard;
 
