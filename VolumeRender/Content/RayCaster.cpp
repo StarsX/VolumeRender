@@ -30,7 +30,7 @@ static_assert(_CPU_SLICE_CULL_ == 0 || _CPU_SLICE_CULL_ == 1 || _CPU_SLICE_CULL_
 #endif
 
 #if _CPU_SLICE_CULL_
-static inline bool IsSliceVisible(uint32_t slice, const float* localSpaceEyePt)
+static inline bool IsSliceVisible(uint8_t slice, const float* localSpaceEyePt)
 {
 	const auto& viewComp = localSpaceEyePt[slice >> 1];
 
@@ -75,6 +75,102 @@ static inline uint32_t GenVisibleSliceList(CBSliceList& sliceList, CXMMATRIX wor
 	return count;
 }
 #endif
+
+static inline XMVECTOR ProjectToViewport(uint32_t i, CXMMATRIX worldViewProj, CXMVECTOR viewport)
+{
+	static const XMVECTOR v[] =
+	{
+		XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f),
+		XMVectorSet(-1.0f, 1.0f, 1.0f, 1.0f),
+		XMVectorSet(1.0f, -1.0f, 1.0f, 1.0f),
+		XMVectorSet(-1.0f, -1.0f, 1.0f, 1.0f),
+		
+		XMVectorSet(-1.0f, 1.0f, -1.0f, 1.0f),
+		XMVectorSet(1.0f, 1.0f, -1.0f, 1.0f),
+		XMVectorSet(-1.0f, -1.0f, -1.0f, 1.0f),
+		XMVectorSet(1.0f, -1.0f, -1.0f, 1.0f),
+	};
+
+	auto p = XMVector3TransformCoord(v[i], worldViewProj);
+	p *= XMVectorSet(0.5f, -0.5f, 1.0f, 1.0f);
+	p += XMVectorSet(0.5f, 0.5f, 0.0f, 0.0f);
+
+	return p * viewport;
+}
+
+//static inline float EstimateSlicePixelSize(uint8_t vi[4], const XMVECTOR v[8])
+//{
+//	static const uint8_t order[] = { 0, 1, 3, 2 };
+//
+//	auto s = 0.0f;
+//	for (uint8_t i = 0; i < 4; ++i)
+//	{
+//		const auto& j = vi[order[i]];
+//		const auto e = v[(j + 1) % 4] - v[j];
+//		s = (max)(XMVectorGetX(XMVector2Length(e)), s);
+//	}
+//
+//	return s;
+//}
+
+static inline float EstimateCubeEdgePixelSize(const XMVECTOR v[8])
+{
+	static const uint8_t ei[][2] =
+	{
+		{ 0, 1 },
+		{ 3, 2 },
+
+		{ 1, 3 },
+		{ 2, 0 },
+
+		{ 4, 5 },
+		{ 7, 6 },
+
+		{ 5, 7 },
+		{ 6, 4 },
+
+		{ 1, 4 },
+		{ 6, 3 },
+
+		{ 5, 0 },
+		{ 2, 7 }
+	};
+
+	auto s = 0.0f;
+	for (uint8_t i = 0; i < 12; ++i)
+	{
+		const auto e = v[ei[i][1]] - v[ei[i][0]];
+		s = (max)(XMVectorGetX(XMVector2Length(e)), s);
+	}
+
+	return s;
+}
+
+static inline uint8_t EstimateCubeMapLOD(float cubeMapSize, uint32_t& raySampleCount,
+	CXMMATRIX worldViewProj, CXMVECTOR viewport, float raySampleCountScale = 1.0f)
+{
+	XMVECTOR v[8];
+	for (uint8_t i = 0; i < 8; ++i) v[i] = ProjectToViewport(i, worldViewProj, viewport);
+
+	// Calulate the ideal cube-map resolution
+	auto s = EstimateCubeEdgePixelSize(v);
+	
+	// Get the ideal ray sample amount
+	auto raySampleAmt = raySampleCountScale * s;
+
+	// Clamp the ideal ray sample amount using the user-specified upper bound of ray sample count
+	const auto raySampleCnt = static_cast<uint32_t>(ceilf(raySampleAmt));
+	raySampleCount = (min)(raySampleCnt, raySampleCount);
+
+	// Inversely derive the cube-map resolution from the clamped ray sample amount
+	raySampleAmt = (min)(raySampleAmt, static_cast<float>(raySampleCount));
+	s = raySampleAmt / raySampleCountScale;
+
+	// Use the more detailed integer level for conservation
+	//return static_cast<uint8_t>(floorf(log2f(cubeMapSize / s)));
+
+	return static_cast<uint8_t>(log2f(cubeMapSize / s));
+}
 
 RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
