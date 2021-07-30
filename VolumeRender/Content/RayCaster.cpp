@@ -166,7 +166,10 @@ static inline uint8_t EstimateCubeMapLOD(float cubeMapSize, uint32_t& raySampleC
 	raySampleAmt = (min)(raySampleAmt, static_cast<float>(raySampleCount));
 	s = raySampleAmt / raySampleCountScale;
 
-	return static_cast<uint8_t>(ceilf(log2f(cubeMapSize / s)));
+	// Use the more detailed integer level for conservation
+	//return static_cast<uint8_t>(floorf(log2f(cubeMapSize / s)));
+
+	return static_cast<uint8_t>(log2f(cubeMapSize / s));
 }
 
 RayCaster::RayCaster(const Device::sptr& device) :
