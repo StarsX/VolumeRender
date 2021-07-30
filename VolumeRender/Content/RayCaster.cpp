@@ -98,20 +98,20 @@ static inline XMVECTOR ProjectToViewport(uint32_t i, CXMMATRIX worldViewProj, CX
 	return p * viewport;
 }
 
-static inline float EstimateSlicePixelSize(uint8_t vi[4], const XMVECTOR v[8])
-{
-	static const uint8_t order[] = { 0, 1, 3, 2 };
-
-	auto s = 0.0f;
-	for (uint8_t i = 0; i < 4; ++i)
-	{
-		const auto& j = vi[order[i]];
-		const auto e = v[(j + 1) % 4] - v[j];
-		s = (max)(XMVectorGetX(XMVector2Length(e)), s);
-	}
-
-	return s;
-}
+//static inline float EstimateSlicePixelSize(uint8_t vi[4], const XMVECTOR v[8])
+//{
+//	static const uint8_t order[] = { 0, 1, 3, 2 };
+//
+//	auto s = 0.0f;
+//	for (uint8_t i = 0; i < 4; ++i)
+//	{
+//		const auto& j = vi[order[i]];
+//		const auto e = v[(j + 1) % 4] - v[j];
+//		s = (max)(XMVectorGetX(XMVector2Length(e)), s);
+//	}
+//
+//	return s;
+//}
 
 static inline float EstimateCubeEdgePixelSize(const XMVECTOR v[8])
 {
@@ -146,17 +146,17 @@ static inline float EstimateCubeEdgePixelSize(const XMVECTOR v[8])
 	return s;
 }
 
-static inline uint8_t EstimateCubeMapLOD(float cubeMapSize, uint32_t& raySampleCount, CXMMATRIX worldViewProj, CXMVECTOR viewport)
+static inline uint8_t EstimateCubeMapLOD(float cubeMapSize, uint32_t& raySampleCount,
+	CXMMATRIX worldViewProj, CXMVECTOR viewport, float raySampleCountScale = 1.0f)
 {
 	XMVECTOR v[8];
 	for (uint8_t i = 0; i < 8; ++i) v[i] = ProjectToViewport(i, worldViewProj, viewport);
 
-	// Get ideal cube-map resolution
+	// Calulate the ideal cube-map resolution
 	auto s = EstimateCubeEdgePixelSize(v);
 	
-	// Get ideal ray sample amount
-	const auto raySampleCountScl = 1.0f;
-	auto raySampleAmt = raySampleCountScl * s;
+	// Get the ideal ray sample amount
+	auto raySampleAmt = raySampleCountScale * s;
 
 	// Clamp the ideal ray sample amount using the user-specified upper bound of ray sample count
 	const auto raySampleCnt = static_cast<uint32_t>(ceilf(raySampleAmt));
@@ -164,7 +164,7 @@ static inline uint8_t EstimateCubeMapLOD(float cubeMapSize, uint32_t& raySampleC
 
 	// Inversely derive the cube-map resolution from the clamped ray sample amount
 	raySampleAmt = (min)(raySampleAmt, static_cast<float>(raySampleCount));
-	s = raySampleAmt / raySampleCountScl;
+	s = raySampleAmt / raySampleCountScale;
 
 	return static_cast<uint8_t>(ceilf(log2f(cubeMapSize / s)));
 }
