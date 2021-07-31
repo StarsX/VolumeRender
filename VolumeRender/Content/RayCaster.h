@@ -62,7 +62,6 @@ protected:
 		SRV_TABLE_FILE_SRC,
 		SRV_TABLE_VOLUME,
 		SRV_TABLE_LIGHT_MAP,
-		SRV_TABLE_CUBE_MAP,
 		SRV_TABLE_DEPTH,
 		SRV_TABLE_SHADOW,
 
@@ -97,8 +96,9 @@ protected:
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
 
+	std::vector<XUSG::DescriptorTable> m_uavMipTables;
+	std::vector<XUSG::DescriptorTable> m_srvMipTables;
 	XUSG::DescriptorTable	m_cbvTables[FrameCount];
-	XUSG::DescriptorTable	m_uavSrvTable;
 	XUSG::DescriptorTable	m_srvUavTable;
 	XUSG::DescriptorTable	m_srvTables[NUM_SRV_TABLE];
 	XUSG::DescriptorTable	m_uavTable;
@@ -118,10 +118,13 @@ protected:
 
 	uint32_t				m_gridSize;
 	uint32_t				m_lightGridSize;
-	uint32_t				m_sliceCount;
+	uint32_t				m_raySampleCount;
 #if _CPU_SLICE_CULL_ == 1
 	uint32_t				m_visibilityMask;
 #endif
+
+	uint8_t					m_sliceCount;
+	uint8_t					m_cubeMapLOD;
 
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;

@@ -8,6 +8,9 @@
 #include "Advanced/XUSGDDSLoader.h"
 #undef _INDEPENDENT_DDS_LOADER_
 
+#define NUM_SAMPLES			256
+#define NUM_LIGHT_SAMPLES	64
+
 using namespace std;
 using namespace DirectX;
 using namespace XUSG;
@@ -30,9 +33,9 @@ static_assert(_CPU_SLICE_CULL_ == 0 || _CPU_SLICE_CULL_ == 1 || _CPU_SLICE_CULL_
 #endif
 
 #if _CPU_SLICE_CULL_
-static inline bool IsSliceVisible(uint8_t slice, const float* localSpaceEyePt)
+static inline bool IsSliceVisible(uint8_t slice, CXMVECTOR localSpaceEyePt)
 {
-	const auto& viewComp = localSpaceEyePt[slice >> 1];
+	const auto& viewComp = XMVectorGetByIndex(localSpaceEyePt, slice >> 1);
 
 	return (slice & 0x1) ? viewComp > -1.0f : viewComp < 1.0f;
 }
@@ -46,7 +49,7 @@ static inline uint32_t GenVisibilityMask(CXMMATRIX worldI, const XMFLOAT3& eyePt
 	auto mask = 0u;
 	for (uint8_t i = 0; i < 6; ++i)
 	{
-		const auto isVisible = IsSliceVisible(i, localSpaceEyePt.m128_f32);
+		const auto isVisible = IsSliceVisible(i, localSpaceEyePt);
 		mask |= (isVisible ? 1 : 0) << i;
 	}
 
@@ -58,14 +61,14 @@ struct CBSliceList
 	XMUINT4 Slices[5];
 };
 
-static inline uint32_t GenVisibleSliceList(CBSliceList& sliceList, CXMMATRIX worldI, const XMFLOAT3& eyePt)
+static inline uint8_t GenVisibleSliceList(CBSliceList& sliceList, CXMMATRIX worldI, const XMFLOAT3& eyePt)
 {
 	const auto localSpaceEyePt = XMVector3Transform(XMLoadFloat3(&eyePt), worldI);
 
-	auto count = 0u;
+	uint8_t count = 0;
 	for (uint8_t i = 0; i < 6; ++i)
 	{
-		if (IsSliceVisible(i, localSpaceEyePt.m128_f32))
+		if (IsSliceVisible(i, localSpaceEyePt))
 		{
 			assert(count < 5);
 			sliceList.Slices[count++].x = i;
@@ -146,17 +149,17 @@ static inline float EstimateCubeEdgePixelSize(const XMVECTOR v[8])
 	return s;
 }
 
-static inline uint8_t EstimateCubeMapLOD(float cubeMapSize, uint32_t& raySampleCount,
-	CXMMATRIX worldViewProj, CXMVECTOR viewport, float raySampleCountScale = 1.0f)
+static inline uint8_t EstimateCubeMapLOD(uint32_t& raySampleCount, uint8_t numMips, float cubeMapSize,
+	CXMMATRIX worldViewProj, CXMVECTOR viewport, float upscale = 2.0f, float raySampleCountScale = 2.0f)
 {
 	XMVECTOR v[8];
 	for (uint8_t i = 0; i < 8; ++i) v[i] = ProjectToViewport(i, worldViewProj, viewport);
 
 	// Calulate the ideal cube-map resolution
-	auto s = EstimateCubeEdgePixelSize(v);
+	auto s = EstimateCubeEdgePixelSize(v) / upscale;
 	
 	// Get the ideal ray sample amount
-	auto raySampleAmt = raySampleCountScale * s;
+	auto raySampleAmt = raySampleCountScale * s / sqrtf(3.0f);
 
 	// Clamp the ideal ray sample amount using the user-specified upper bound of ray sample count
 	const auto raySampleCnt = static_cast<uint32_t>(ceilf(raySampleAmt));
@@ -164,17 +167,19 @@ static inline uint8_t EstimateCubeMapLOD(float cubeMapSize, uint32_t& raySampleC
 
 	// Inversely derive the cube-map resolution from the clamped ray sample amount
 	raySampleAmt = (min)(raySampleAmt, static_cast<float>(raySampleCount));
-	s = raySampleAmt / raySampleCountScale;
+	s = raySampleAmt / raySampleCountScale * sqrtf(3.0f);
 
 	// Use the more detailed integer level for conservation
-	//return static_cast<uint8_t>(floorf(log2f(cubeMapSize / s)));
+	//const auto level = static_cast<uint8_t>(floorf((max)(log2f(cubeMapSize / s), 0.0f)));
+	const auto level = static_cast<uint8_t>((max)(log2f(cubeMapSize / s), 0.0f));
 
-	return static_cast<uint8_t>(log2f(cubeMapSize / s));
+	return min<uint8_t>(level, numMips - 1);
 }
 
 RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
 	m_sliceCount(6),
+	m_cubeMapLOD(0),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
 	m_ambient(0.0f, 0.3f, 1.0f, 0.4f)
@@ -205,13 +210,14 @@ bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS, 1,
 		MemoryType::DEFAULT, L"Volume"), false);
 
+	const uint8_t numMips = 5;
 	m_cubeMap = Texture2D::MakeUnique();
 	N_RETURN(m_cubeMap->Create(m_device.get(), gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
 
 	m_cubeDepth = Texture2D::MakeUnique();
 	N_RETURN(m_cubeDepth->Create(m_device.get(), gridSize, gridSize, Format::R32_FLOAT, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, true, L"CubeDepth"), false);
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, MemoryType::DEFAULT, true, L"CubeDepth"), false);
 
 	m_lightGridSize = gridSize >> 1;
 	m_lightMap = Texture3D::MakeUnique();
@@ -357,6 +363,11 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 		pCbData->Ambient = m_ambient;
 	}
 
+	m_raySampleCount = NUM_SAMPLES;
+	const float cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
+	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, m_cubeMap->GetNumMips(),
+		cubeMapSize, worldViewProj, XMVectorSet(1280.0f, 800.0f, 1.0f, 1.0f));
+
 #if _CPU_SLICE_CULL_ == 1
 	m_visibilityMask = GenVisibilityMask(worldI, eyePt);
 #elif _CPU_SLICE_CULL_ == 2
@@ -410,6 +421,7 @@ void RayCaster::RayMarchL(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(1, m_srvUavTable);
 	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_SHADOW]);
 	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
+	pCommandList->SetCompute32BitConstant(4, NUM_LIGHT_SAMPLES);
 
 	// Dispatch grid
 	pCommandList->Dispatch(DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4));
@@ -461,13 +473,14 @@ bool RayCaster::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
-		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetRange(3, DescriptorType::SRV, 2, 1);
+		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetConstants(5, 2, 1);
 #if _CPU_SLICE_CULL_ == 1
-		pipelineLayout->SetConstants(4, 1, 1);
+		pipelineLayout->SetConstants(6, 1, 2);
 #elif _CPU_SLICE_CULL_ == 2
-		pipelineLayout->SetRootCBV(4, 1);
+		pipelineLayout->SetRootCBV(6, 2);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayMarchingLayout"), false);
@@ -481,6 +494,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetConstants(4, 1, 1);
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_L], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"LightSpaceRayMarchingLayout"), false);
 	}
@@ -490,13 +504,14 @@ bool RayCaster::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
-		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 0);
+		pipelineLayout->SetRange(3, DescriptorType::SRV, 1, 2);
+		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetConstants(5, 1, 1);
 #if _CPU_SLICE_CULL_ == 1
-		pipelineLayout->SetConstants(4, 1, 1);
+		pipelineLayout->SetConstants(6, 1, 2);
 #elif _CPU_SLICE_CULL_ == 2
-		pipelineLayout->SetRootCBV(4, 1);
+		pipelineLayout->SetRootCBV(6, 2);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceRayMarchingLayout"), false);
@@ -538,10 +553,12 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetConstants(4, 2, 1);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(4, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"DirectRayCastingLayout"), false);
 	}
@@ -553,10 +570,12 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetConstants(4, 1, 1);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
-		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(4, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceDirectRayCastingLayout"), false);
 	}
@@ -700,17 +719,18 @@ bool RayCaster::createDescriptorTables()
 	}
 
 	// Create UAV and SRV table
+	const uint8_t numMips = m_cubeMap->GetNumMips();
+	m_uavMipTables.resize(numMips);
+	for (uint8_t i = 0; i < numMips; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const Descriptor descriptors[] =
 		{
-			m_cubeMap->GetUAV(),
-			m_cubeDepth->GetUAV()
-			//m_volume->GetSRV(),	// shared with m_srvTables[SRV_TABLE_VOLUME]
-			//m_lightMap->GetSRV()	// shared with m_srvTables[SRV_TABLE_LIGHT_MAP]
+			m_cubeMap->GetUAV(i),
+			m_cubeDepth->GetUAV(i)
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_uavSrvTable, descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		X_RETURN(m_uavMipTables[i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create SRV tables
@@ -739,15 +759,17 @@ bool RayCaster::createDescriptorTables()
 	}
 
 	// Create SRV tables
+	m_srvMipTables.resize(numMips);
+	for (uint8_t i = 0; i < numMips; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const Descriptor descriptors[] =
 		{
-			m_cubeMap->GetSRV(),
-			m_cubeDepth->GetSRV()
+			m_cubeMap->GetSRV(i),
+			m_cubeDepth->GetSRV(i)
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[SRV_TABLE_CUBE_MAP], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		X_RETURN(m_srvMipTables[i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	if (m_pDepths[DEPTH_MAP])
@@ -795,13 +817,16 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 
 	// Set descriptor tables
 	pCommandList->SetComputeDescriptorTable(0, m_cbvTables[frameIndex]);
-	pCommandList->SetComputeDescriptorTable(1, m_uavSrvTable);
-	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
-	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
+	pCommandList->SetComputeDescriptorTable(1, m_uavMipTables[m_cubeMapLOD]);
+	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_VOLUME]);
+	pCommandList->SetComputeDescriptorTable(3, m_srvTables[SRV_TABLE_DEPTH]);
+	pCommandList->SetComputeDescriptorTable(4, m_samplerTable);
+	pCommandList->SetCompute32BitConstant(5, m_raySampleCount);
+	pCommandList->SetCompute32BitConstant(5, NUM_LIGHT_SAMPLES, 1);
 #if _CPU_SLICE_CULL_ == 1
-	pCommandList->SetCompute32BitConstant(4, m_visibilityMask);
+	pCommandList->SetCompute32BitConstant(6, m_visibilityMask);
 #elif _CPU_SLICE_CULL_ == 2
-	pCommandList->SetComputeRootConstantBufferView(4, m_cbSliceList.get(), m_cbSliceList->GetCBVOffset(frameIndex));
+	pCommandList->SetComputeRootConstantBufferView(6, m_cbSliceList.get(), m_cbSliceList->GetCBVOffset(frameIndex));
 #endif
 
 	// Dispatch cube
@@ -823,13 +848,15 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 
 	// Set descriptor tables
 	pCommandList->SetComputeDescriptorTable(0, m_cbvTables[frameIndex]);
-	pCommandList->SetComputeDescriptorTable(1, m_uavSrvTable);
-	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
-	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
+	pCommandList->SetComputeDescriptorTable(1, m_uavMipTables[m_cubeMapLOD]);
+	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_VOLUME]);
+	pCommandList->SetComputeDescriptorTable(3, m_srvTables[SRV_TABLE_DEPTH]);
+	pCommandList->SetComputeDescriptorTable(4, m_samplerTable);
+	pCommandList->SetCompute32BitConstant(5, m_raySampleCount);
 #if _CPU_SLICE_CULL_ == 1
-	pCommandList->SetCompute32BitConstant(4, m_visibilityMask);
+	pCommandList->SetCompute32BitConstant(6, m_visibilityMask);
 #elif _CPU_SLICE_CULL_ == 2
-	pCommandList->SetComputeRootConstantBufferView(4, m_cbSliceList.get(), m_cbSliceList->GetCBVOffset(frameIndex));
+	pCommandList->SetComputeRootConstantBufferView(6, m_cbSliceList.get(), m_cbSliceList->GetCBVOffset(frameIndex));
 #endif
 
 	// Dispatch cube
@@ -851,7 +878,7 @@ void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
-	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_CUBE_MAP]);
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvMipTables[m_cubeMapLOD]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
 
@@ -874,7 +901,7 @@ void RayCaster::rayCastCube(const CommandList* pCommandList, uint8_t frameIndex)
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsDescriptorTable(0, m_cbvTables[frameIndex]);
-	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_CUBE_MAP]);
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvMipTables[m_cubeMapLOD]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
 
@@ -899,6 +926,8 @@ void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameInde
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_VOLUME]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
+	pCommandList->SetGraphics32BitConstant(4, NUM_SAMPLES);
+	pCommandList->SetGraphics32BitConstant(4, NUM_LIGHT_SAMPLES, 1);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }
@@ -922,6 +951,7 @@ void RayCaster::rayCastVDirect(const CommandList* pCommandList, uint8_t frameInd
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_VOLUME]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
+	pCommandList->SetGraphics32BitConstant(4, NUM_SAMPLES);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }

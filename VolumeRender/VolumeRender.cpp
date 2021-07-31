@@ -141,7 +141,7 @@ void VolumeRender::LoadAssets()
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
 	vector<Resource::uptr> uploaders(0);
-	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 27, 0);
+	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 51, 0);
 	m_objectRenderer = make_unique<ObjectRenderer>(m_device);
 	if (!m_objectRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,

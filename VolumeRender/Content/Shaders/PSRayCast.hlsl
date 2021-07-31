@@ -69,7 +69,7 @@ min16float4 main(PSIn input) : SV_TARGET
 	min16float3 scatter = 0.0;
 
 	float t = 0.0;
-	for (uint i = 0; i < NUM_SAMPLES; ++i)
+	for (uint i = 0; i < g_numSamples; ++i)
 	{
 		const float3 pos = rayOrigin + rayDir * t;
 		if (any(abs(pos) > 1.0)) break;
