@@ -70,9 +70,7 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 	uvw = pos;
 #endif
 
-#if 0
-	float4 result = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
-#else
+	const float4 color = g_txCubeMap.SampleLevel(g_smpLinear, uvw, 0.0);
 	const float4x4 gathers =
 	{
 		g_txCubeMap.GatherRed(g_smpLinear, uvw),
@@ -107,7 +105,7 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 	{
 #ifdef _HAS_DEPTH_MAP_
 		const float zi = UnprojectZ(z[i]);
-		min16float w = min16float(max(1.0 - abs(depth - zi), 0.0));
+		min16float w = min16float(max(1.0 - 0.5 * abs(depth - zi), 0.0));
 		w *= wb[i];
 #else
 		const min16float w = wb[i];
@@ -117,10 +115,10 @@ min16float4 CubeCast(uint2 idx, float3 uvw, float3 pos, float3 rayDir)
 		ws += w;
 	}
 
-	result /= ws > 0.0 ? ws : 1.0;
-#endif
+	//result = min16float4(color); // Reference
+	result = ws > 0.0 ? result / ws : min16float4(color);
 
 	if (result.w <= 0.0) discard;
 
-	return min16float4(result);
+	return result;
 }
