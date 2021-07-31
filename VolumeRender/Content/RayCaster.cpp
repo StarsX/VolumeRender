@@ -365,9 +365,12 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 
 	m_raySampleCount = NUM_SAMPLES;
 	const auto& depth = m_pDepths[DEPTH_MAP];
+	const auto numMips = m_cubeMap->GetNumMips();
 	const auto cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
-	const auto viewport = XMVectorSet(depth->GetWidth(), depth->GetHeight(), 1.0f, 1.0f);
-	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, m_cubeMap->GetNumMips(), cubeMapSize, worldViewProj, viewport);
+	const auto width = static_cast<float>(depth->GetWidth());
+	const auto height = static_cast<float>(depth->GetHeight());
+	const auto viewport = XMVectorSet(width, height, 1.0f, 1.0f);
+	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, numMips, cubeMapSize, worldViewProj, viewport);
 
 #if _CPU_SLICE_CULL_ == 1
 	m_visibilityMask = GenVisibilityMask(worldI, eyePt);

@@ -9,8 +9,8 @@
 //
 //*********************************************************
 
-#include "VolumeRender.h"
 #include "SharedConsts.h"
+#include "VolumeRender.h"
 
 using namespace std;
 using namespace XUSG;
