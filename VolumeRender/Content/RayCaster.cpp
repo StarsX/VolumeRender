@@ -364,9 +364,10 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 	}
 
 	m_raySampleCount = NUM_SAMPLES;
-	const float cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
-	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, m_cubeMap->GetNumMips(),
-		cubeMapSize, worldViewProj, XMVectorSet(1280.0f, 800.0f, 1.0f, 1.0f));
+	const auto& depth = m_pDepths[DEPTH_MAP];
+	const auto cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
+	const auto viewport = XMVectorSet(depth->GetWidth(), depth->GetHeight(), 1.0f, 1.0f);
+	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, m_cubeMap->GetNumMips(), cubeMapSize, worldViewProj, viewport);
 
 #if _CPU_SLICE_CULL_ == 1
 	m_visibilityMask = GenVisibilityMask(worldI, eyePt);
@@ -553,12 +554,11 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 2, 1);
+		pipelineLayout->SetConstants(4, 2, 1, 0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
-		pipelineLayout->SetShaderStage(4, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"DirectRayCastingLayout"), false);
 	}
@@ -570,12 +570,11 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 1, 1);
+		pipelineLayout->SetConstants(4, 1, 1, 0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
-		pipelineLayout->SetShaderStage(4, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceDirectRayCastingLayout"), false);
 	}
