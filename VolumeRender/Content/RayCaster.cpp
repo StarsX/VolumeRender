@@ -675,9 +675,8 @@ bool RayCaster::createPipelines(Format rtFormat)
 		X_RETURN(m_pipelines[RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
 	}
 
-	// Direct Ray casting
+	// Direct ray casting
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSRayCast.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
@@ -691,14 +690,13 @@ bool RayCaster::createPipelines(Format rtFormat)
 		X_RETURN(m_pipelines[DIRECT_RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"DirectRayCasting"), false);
 	}
 
-	// View space direct Ray casting
+	// View space direct ray casting
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSRayCastV.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST_V]);
-		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
@@ -832,7 +830,8 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 #endif
 
 	// Dispatch cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), m_sliceCount);
+	const auto gridSize = m_gridSize >> m_cubeMapLOD;
+	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_sliceCount);
 }
 
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
@@ -862,7 +861,8 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 #endif
 
 	// Dispatch cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), m_sliceCount);
+	const auto gridSize = m_gridSize >> m_cubeMapLOD;
+	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_sliceCount);
 }
 
 void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
