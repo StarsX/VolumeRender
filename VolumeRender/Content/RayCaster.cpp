@@ -531,7 +531,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[CUBE], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+		X_RETURN(m_pipelineLayouts[RENDER_CUBE], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"CubeLayout"), false);
 	}
 
@@ -647,7 +647,7 @@ bool RayCaster::createPipelines(Format rtFormat)
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSCube.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
-		state->SetPipelineLayout(m_pipelineLayouts[CUBE]);
+		state->SetPipelineLayout(m_pipelineLayouts[RENDER_CUBE]);
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
@@ -655,7 +655,7 @@ bool RayCaster::createPipelines(Format rtFormat)
 		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
 		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
-		X_RETURN(m_pipelines[CUBE], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
+		X_RETURN(m_pipelines[RENDER_CUBE], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
 	}
 
 	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
@@ -873,8 +873,8 @@ void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Barrier(numBarriers, &barrier);
 
 	// Set pipeline state
-	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[CUBE]);
-	pCommandList->SetPipelineState(m_pipelines[CUBE]);
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[RENDER_CUBE]);
+	pCommandList->SetPipelineState(m_pipelines[RENDER_CUBE]);
 
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
 
