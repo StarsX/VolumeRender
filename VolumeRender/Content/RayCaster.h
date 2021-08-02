@@ -110,8 +110,8 @@ protected:
 	XUSG::Texture2D::uptr		m_cubeDepth;
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
-#if _CPU_SLICE_CULL_ == 2
-	XUSG::ConstantBuffer::uptr	m_cbSliceList;
+#if _CPU_CUBE_FACE_CULL_ == 2
+	XUSG::ConstantBuffer::uptr	m_cbCubeFaceList;
 #endif
 
 	const XUSG::DepthStencil::uptr* m_pDepths;
@@ -119,11 +119,11 @@ protected:
 	uint32_t				m_gridSize;
 	uint32_t				m_lightGridSize;
 	uint32_t				m_raySampleCount;
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 	uint32_t				m_visibilityMask;
 #endif
 
-	uint8_t					m_sliceCount;
+	uint8_t					m_cubeFaceCount;
 	uint8_t					m_cubeMapLOD;
 
 	DirectX::XMFLOAT3		m_lightPt;

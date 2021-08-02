@@ -8,15 +8,15 @@
 //--------------------------------------------------------------------------------------
 // Constant buffer
 //--------------------------------------------------------------------------------------
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 cbuffer cb
 {
 	uint g_visibilityMask;
 };
-#elif _CPU_SLICE_CULL_ == 2
+#elif _CPU_CUBE_FACE_CULL_ == 2
 cbuffer cb
 {
-	uint g_slices[5];
+	uint g_faces[5];
 };
 #endif
 
@@ -31,7 +31,7 @@ RWTexture2DArray<float> g_rwCubeDepth;
 //--------------------------------------------------------------------------------------
 // Get the local-space position of the grid surface
 //--------------------------------------------------------------------------------------
-float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
+float3 GetLocalPos(float2 pos, uint face, RWTexture2DArray<float4> rwCubeMap)
 {
 	float3 gridSize;
 	rwCubeMap.GetDimensions(gridSize.x, gridSize.y, gridSize.z);
@@ -39,7 +39,7 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
 	pos = (pos + 0.5) / gridSize.xy * 2.0 - 1.0;
 	pos.y = -pos.y;
 
-	switch (slice)
+	switch (face)
 	{
 	case 0: // +X
 		return float3(1.0, pos.y, -pos.x);
@@ -59,13 +59,13 @@ float3 GetLocalPos(float2 pos, uint slice, RWTexture2DArray<float4> rwCubeMap)
 }
 
 //--------------------------------------------------------------------------------------
-// Check the visibility of the slice
+// Check the visibility of the cube face
 //--------------------------------------------------------------------------------------
-bool IsVisible(uint slice, float3 localSpaceEyePt)
+bool IsVisible(uint face, float3 localSpaceEyePt)
 {
-	const float viewComp = localSpaceEyePt[slice >> 1];
+	const float viewComp = localSpaceEyePt[face >> 1];
 
-	return (slice & 0x1) ? viewComp > -1.0 : viewComp < 1.0;
+	return (face & 0x1) ? viewComp > -1.0 : viewComp < 1.0;
 }
 
 //--------------------------------------------------------------------------------------
@@ -95,16 +95,16 @@ float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 	if ((g_visibilityMask & (1 << DTid.z)) == 0) return;
-#elif _CPU_SLICE_CULL_ == 2
-	DTid.z = g_slices[DTid.z];
+#elif _CPU_CUBE_FACE_CULL_ == 2
+	DTid.z = g_faces[DTid.z];
 #endif
 
 	float3 rayOrigin = mul(g_eyePos, g_worldI);
 	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
 
-#if !defined(_CPU_SLICE_CULL_) || _CPU_SLICE_CULL_ == 0
+#if !defined(_CPU_CUBE_FACE_CULL_) || _CPU_CUBE_FACE_CULL_ == 0
 	if (!IsVisible(DTid.z, rayOrigin)) return;
 #endif
 

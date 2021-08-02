@@ -28,20 +28,20 @@ struct CBPerObject
 	XMFLOAT4 Ambient;
 };
 
-#ifdef _CPU_SLICE_CULL_
-static_assert(_CPU_SLICE_CULL_ == 0 || _CPU_SLICE_CULL_ == 1 || _CPU_SLICE_CULL_ == 2, "_CPU_SLICE_CULL_ can only be 0, 1, or 2");
+#ifdef _CPU_CUBE_FACE_CULL_
+static_assert(_CPU_CUBE_FACE_CULL_ == 0 || _CPU_CUBE_FACE_CULL_ == 1 || _CPU_CUBE_FACE_CULL_ == 2, "_CPU_CUBE_FACE_CULL_ can only be 0, 1, or 2");
 #endif
 
-#if _CPU_SLICE_CULL_
-static inline bool IsSliceVisible(uint8_t slice, CXMVECTOR localSpaceEyePt)
+#if _CPU_CUBE_FACE_CULL_
+static inline bool IsCubeFaceVisible(uint8_t face, CXMVECTOR localSpaceEyePt)
 {
-	const auto& viewComp = XMVectorGetByIndex(localSpaceEyePt, slice >> 1);
+	const auto& viewComp = XMVectorGetByIndex(localSpaceEyePt, face >> 1);
 
-	return (slice & 0x1) ? viewComp > -1.0f : viewComp < 1.0f;
+	return (face & 0x1) ? viewComp > -1.0f : viewComp < 1.0f;
 }
 #endif
 
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 static inline uint32_t GenVisibilityMask(CXMMATRIX worldI, const XMFLOAT3& eyePt)
 {
 	const auto localSpaceEyePt = XMVector3Transform(XMLoadFloat3(&eyePt), worldI);
@@ -49,29 +49,29 @@ static inline uint32_t GenVisibilityMask(CXMMATRIX worldI, const XMFLOAT3& eyePt
 	auto mask = 0u;
 	for (uint8_t i = 0; i < 6; ++i)
 	{
-		const auto isVisible = IsSliceVisible(i, localSpaceEyePt);
+		const auto isVisible = IsCubeFaceVisible(i, localSpaceEyePt);
 		mask |= (isVisible ? 1 : 0) << i;
 	}
 
 	return mask;
 }
-#elif _CPU_SLICE_CULL_ == 2
-struct CBSliceList
+#elif _CPU_CUBE_FACE_CULL_ == 2
+struct CBCubeFaceList
 {
-	XMUINT4 Slices[5];
+	XMUINT4 Faces[5];
 };
 
-static inline uint8_t GenVisibleSliceList(CBSliceList& sliceList, CXMMATRIX worldI, const XMFLOAT3& eyePt)
+static inline uint8_t GenVisibleCubeFaceList(CBCubeFaceList& faceList, CXMMATRIX worldI, const XMFLOAT3& eyePt)
 {
 	const auto localSpaceEyePt = XMVector3Transform(XMLoadFloat3(&eyePt), worldI);
 
 	uint8_t count = 0;
 	for (uint8_t i = 0; i < 6; ++i)
 	{
-		if (IsSliceVisible(i, localSpaceEyePt))
+		if (IsCubeFaceVisible(i, localSpaceEyePt))
 		{
 			assert(count < 5);
-			sliceList.Slices[count++].x = i;
+			faceList.Faces[count++].x = i;
 		}
 	}
 
@@ -101,7 +101,7 @@ static inline XMVECTOR ProjectToViewport(uint32_t i, CXMMATRIX worldViewProj, CX
 	return p * viewport;
 }
 
-//static inline float EstimateSlicePixelSize(uint8_t vi[4], const XMVECTOR v[8])
+//static inline float EstimateCubeFacePixelSize(uint8_t vi[4], const XMVECTOR v[8])
 //{
 //	static const uint8_t order[] = { 0, 1, 3, 2 };
 //
@@ -178,7 +178,7 @@ static inline uint8_t EstimateCubeMapLOD(uint32_t& raySampleCount, uint8_t numMi
 
 RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
-	m_sliceCount(6),
+	m_cubeFaceCount(6),
 	m_cubeMapLOD(0),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
@@ -229,10 +229,10 @@ bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, L"RayCaster.CBPerObject"), false);
 
-#if _CPU_SLICE_CULL_ == 2
-	m_cbSliceList = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbSliceList->Create(m_device.get(), sizeof(CBSliceList[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"RayCaster.CBSliceList"), false);
+#if _CPU_CUBE_FACE_CULL_ == 2
+	m_cbCubeFaceList = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbCubeFaceList->Create(m_device.get(), sizeof(CBCubeFaceList[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, L"RayCaster.CBCubeFaceList"), false);
 #endif
 
 	// Create pipelines
@@ -372,12 +372,12 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 	const auto viewport = XMVectorSet(width, height, 1.0f, 1.0f);
 	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, numMips, cubeMapSize, worldViewProj, viewport);
 
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 	m_visibilityMask = GenVisibilityMask(worldI, eyePt);
-#elif _CPU_SLICE_CULL_ == 2
+#elif _CPU_CUBE_FACE_CULL_ == 2
 	{
-		const auto pCbData = reinterpret_cast<CBSliceList*>(m_cbSliceList->Map(frameIndex));
-		m_sliceCount = GenVisibleSliceList(*pCbData, worldI, eyePt);
+		const auto pCbData = reinterpret_cast<CBCubeFaceList*>(m_cbCubeFaceList->Map(frameIndex));
+		m_cubeFaceCount = GenVisibleCubeFaceList(*pCbData, worldI, eyePt);
 	}
 #endif
 }
@@ -481,9 +481,9 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(3, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetConstants(5, 2, 1);
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 		pipelineLayout->SetConstants(6, 1, 2);
-#elif _CPU_SLICE_CULL_ == 2
+#elif _CPU_CUBE_FACE_CULL_ == 2
 		pipelineLayout->SetRootCBV(6, 2);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
@@ -512,9 +512,9 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(3, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetConstants(5, 1, 1);
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 		pipelineLayout->SetConstants(6, 1, 2);
-#elif _CPU_SLICE_CULL_ == 2
+#elif _CPU_CUBE_FACE_CULL_ == 2
 		pipelineLayout->SetRootCBV(6, 2);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
@@ -823,15 +823,15 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(4, m_samplerTable);
 	pCommandList->SetCompute32BitConstant(5, m_raySampleCount);
 	pCommandList->SetCompute32BitConstant(5, NUM_LIGHT_SAMPLES, 1);
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 	pCommandList->SetCompute32BitConstant(6, m_visibilityMask);
-#elif _CPU_SLICE_CULL_ == 2
-	pCommandList->SetComputeRootConstantBufferView(6, m_cbSliceList.get(), m_cbSliceList->GetCBVOffset(frameIndex));
+#elif _CPU_CUBE_FACE_CULL_ == 2
+	pCommandList->SetComputeRootConstantBufferView(6, m_cbCubeFaceList.get(), m_cbCubeFaceList->GetCBVOffset(frameIndex));
 #endif
 
 	// Dispatch cube
 	const auto gridSize = m_gridSize >> m_cubeMapLOD;
-	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_sliceCount);
+	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_cubeFaceCount);
 }
 
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
@@ -854,15 +854,15 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(3, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetComputeDescriptorTable(4, m_samplerTable);
 	pCommandList->SetCompute32BitConstant(5, m_raySampleCount);
-#if _CPU_SLICE_CULL_ == 1
+#if _CPU_CUBE_FACE_CULL_ == 1
 	pCommandList->SetCompute32BitConstant(6, m_visibilityMask);
-#elif _CPU_SLICE_CULL_ == 2
-	pCommandList->SetComputeRootConstantBufferView(6, m_cbSliceList.get(), m_cbSliceList->GetCBVOffset(frameIndex));
+#elif _CPU_CUBE_FACE_CULL_ == 2
+	pCommandList->SetComputeRootConstantBufferView(6, m_cbCubeFaceList.get(), m_cbCubeFaceList->GetCBVOffset(frameIndex));
 #endif
 
 	// Dispatch cube
 	const auto gridSize = m_gridSize >> m_cubeMapLOD;
-	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_sliceCount);
+	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_cubeFaceCount);
 }
 
 void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
