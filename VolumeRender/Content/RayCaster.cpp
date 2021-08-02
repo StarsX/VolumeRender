@@ -364,9 +364,13 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 	}
 
 	m_raySampleCount = NUM_SAMPLES;
-	const float cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
-	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, m_cubeMap->GetNumMips(),
-		cubeMapSize, worldViewProj, XMVectorSet(1280.0f, 800.0f, 1.0f, 1.0f));
+	const auto& depth = m_pDepths[DEPTH_MAP];
+	const auto numMips = m_cubeMap->GetNumMips();
+	const auto cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
+	const auto width = static_cast<float>(depth->GetWidth());
+	const auto height = static_cast<float>(depth->GetHeight());
+	const auto viewport = XMVectorSet(width, height, 1.0f, 1.0f);
+	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, numMips, cubeMapSize, worldViewProj, viewport);
 
 #if _CPU_SLICE_CULL_ == 1
 	m_visibilityMask = GenVisibilityMask(worldI, eyePt);
@@ -553,12 +557,11 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 2, 1);
+		pipelineLayout->SetConstants(4, 2, 1, 0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
-		pipelineLayout->SetShaderStage(4, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"DirectRayCastingLayout"), false);
 	}
@@ -570,12 +573,11 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 1, 1);
+		pipelineLayout->SetConstants(4, 1, 1, 0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
-		pipelineLayout->SetShaderStage(4, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[DIRECT_RAY_CAST_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceDirectRayCastingLayout"), false);
 	}
@@ -673,9 +675,8 @@ bool RayCaster::createPipelines(Format rtFormat)
 		X_RETURN(m_pipelines[RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
 	}
 
-	// Direct Ray casting
+	// Direct ray casting
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSRayCast.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
@@ -689,14 +690,13 @@ bool RayCaster::createPipelines(Format rtFormat)
 		X_RETURN(m_pipelines[DIRECT_RAY_CAST], state->GetPipeline(m_graphicsPipelineCache.get(), L"DirectRayCasting"), false);
 	}
 
-	// View space direct Ray casting
+	// View space direct ray casting
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSRayCastV.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[DIRECT_RAY_CAST_V]);
-		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
@@ -830,7 +830,8 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 #endif
 
 	// Dispatch cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), m_sliceCount);
+	const auto gridSize = m_gridSize >> m_cubeMapLOD;
+	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_sliceCount);
 }
 
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
@@ -860,7 +861,8 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 #endif
 
 	// Dispatch cube
-	pCommandList->Dispatch(DIV_UP(m_gridSize, 8), DIV_UP(m_gridSize, 8), m_sliceCount);
+	const auto gridSize = m_gridSize >> m_cubeMapLOD;
+	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_sliceCount);
 }
 
 void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)

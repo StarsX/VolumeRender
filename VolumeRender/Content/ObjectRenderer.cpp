@@ -245,7 +245,7 @@ bool ObjectRenderer::createPipelineLayouts()
 	// Depth pass
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRootCBV(0, 0, 0, Shader::VS);
+		pipelineLayout->SetRootCBV(0, 0, 0, Shader::Stage::VS);
 		X_RETURN(m_pipelineLayouts[DEPTH_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"DepthPassLayout"), false);
 	}
@@ -255,13 +255,13 @@ bool ObjectRenderer::createPipelineLayouts()
 		const auto samplerShadow = m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_LESS_EQUAL);
 
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRootCBV(0, 0, 0, Shader::VS);
-		pipelineLayout->SetRootCBV(1, 0, 0, Shader::PS);
+		pipelineLayout->SetRootCBV(0, 0, 0, Shader::Stage::VS);
+		pipelineLayout->SetRootCBV(1, 0, 0, Shader::Stage::PS);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetStaticSamplers(&samplerShadow, 1, 0, 0, Shader::PS);
-		pipelineLayout->SetShaderStage(0, Shader::VS);
-		pipelineLayout->SetShaderStage(1, Shader::PS);
-		pipelineLayout->SetShaderStage(2, Shader::PS);
+		pipelineLayout->SetShaderStage(0, Shader::Stage::VS);
+		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
