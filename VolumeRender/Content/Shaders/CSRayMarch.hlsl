@@ -156,7 +156,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
 			// Accumulate color
 			color.w = GetOpacity(color.w, g_stepScale);
 			color.xyz *= transm;
-#ifndef _PRE_MULTIPLIED_
+#ifdef _PRE_MULTIPLIED_
+			color.xyz = GetPremultiplied(color.xyz, g_stepScale);
+#else
 			color.xyz *= color.w;
 #endif
 
