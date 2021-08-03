@@ -48,6 +48,9 @@ min16float4 GetSample(float3 uvw)
 {
 	min16float4 color = min16float4(g_txGrid.SampleLevel(g_smpLinear, uvw, 0.0));
 	//min16float4 color = min16float4(0.0, 0.5, 1.0, 0.5);
+#ifdef _PRE_MULTIPLIED_
+	color.xyz *= DENSITY_SCALE;
+#endif
 	color.w *= DENSITY_SCALE;
 
 	return color;
@@ -60,6 +63,16 @@ min16float GetOpacity(min16float density, min16float stepScale)
 {
 	return saturate(density * stepScale * ABSORPTION * 4.0);
 }
+
+//--------------------------------------------------------------------------------------
+// Get opacity
+//--------------------------------------------------------------------------------------
+#ifdef _PRE_MULTIPLIED_
+min16float3 GetPremultiplied(min16float3 color, min16float stepScale)
+{
+	return color * saturate(stepScale * ABSORPTION * 4.0);
+}
+#endif
 
 //--------------------------------------------------------------------------------------
 // Get occluded end point

@@ -531,7 +531,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[CUBE], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+		X_RETURN(m_pipelineLayouts[RENDER_CUBE], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"CubeLayout"), false);
 	}
 
@@ -647,7 +647,7 @@ bool RayCaster::createPipelines(Format rtFormat)
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSCube.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
-		state->SetPipelineLayout(m_pipelineLayouts[CUBE]);
+		state->SetPipelineLayout(m_pipelineLayouts[RENDER_CUBE]);
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
@@ -655,7 +655,7 @@ bool RayCaster::createPipelines(Format rtFormat)
 		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
 		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
-		X_RETURN(m_pipelines[CUBE], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
+		X_RETURN(m_pipelines[RENDER_CUBE], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
 	}
 
 	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
@@ -806,8 +806,9 @@ bool RayCaster::createDescriptorTables()
 void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[2];
+	ResourceBarrier barriers[3];
 	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
+	numBarriers = m_cubeDepth->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
 	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
@@ -837,10 +838,11 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[3];
-	auto numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	ResourceBarrier barriers[4];
+	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
+	numBarriers = m_cubeDepth->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
+	numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
 	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -868,13 +870,14 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barrier;
-	const auto numBarriers = m_cubeMap->SetBarrier(&barrier, ResourceState::PIXEL_SHADER_RESOURCE);
-	pCommandList->Barrier(numBarriers, &barrier);
+	ResourceBarrier barriers[2];
+	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE);
+	numBarriers = m_cubeDepth->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
-	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[CUBE]);
-	pCommandList->SetPipelineState(m_pipelines[CUBE]);
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[RENDER_CUBE]);
+	pCommandList->SetPipelineState(m_pipelines[RENDER_CUBE]);
 
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLESTRIP);
 
@@ -891,9 +894,10 @@ void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
 void RayCaster::rayCastCube(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barrier;
-	const auto numBarriers = m_cubeMap->SetBarrier(&barrier, ResourceState::PIXEL_SHADER_RESOURCE);
-	pCommandList->Barrier(numBarriers, &barrier);
+	ResourceBarrier barriers[2];
+	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE);
+	numBarriers = m_cubeDepth->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[RAY_CAST]);
