@@ -806,10 +806,14 @@ bool RayCaster::createDescriptorTables()
 void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[3];
-	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
-	numBarriers = m_cubeDepth->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
-	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	ResourceBarrier barriers[13];
+	auto numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE);
+	for (uint8_t i = 0; i < 6; ++i)
+	{
+		numBarriers = m_cubeMap->SetBarrier(barriers, m_cubeMapLOD, ResourceState::UNORDERED_ACCESS, numBarriers, i);
+		numBarriers = m_cubeDepth->SetBarrier(barriers, m_cubeMapLOD, ResourceState::UNORDERED_ACCESS, numBarriers, i);
+	}
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -838,11 +842,15 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[4];
-	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
-	numBarriers = m_cubeDepth->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
-	numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	ResourceBarrier barriers[14];
+	auto numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	for (uint8_t i = 0; i < 6; ++i)
+	{
+		numBarriers = m_cubeMap->SetBarrier(barriers, m_cubeMapLOD, ResourceState::UNORDERED_ACCESS, numBarriers, i);
+		numBarriers = m_cubeDepth->SetBarrier(barriers, m_cubeMapLOD, ResourceState::UNORDERED_ACCESS, numBarriers, i);
+	}
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -870,9 +878,13 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[2];
-	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE);
-	numBarriers = m_cubeDepth->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	ResourceBarrier barriers[12];
+	auto numBarriers = 0u;
+	for (uint8_t i = 0; i < 6; ++i)
+	{
+		numBarriers = m_cubeMap->SetBarrier(barriers, m_cubeMapLOD, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, i);
+		numBarriers = m_cubeDepth->SetBarrier(barriers, m_cubeMapLOD, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, i);
+	}
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -894,9 +906,13 @@ void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
 void RayCaster::rayCastCube(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
-	ResourceBarrier barriers[2];
-	auto numBarriers = m_cubeMap->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE);
-	numBarriers = m_cubeDepth->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	ResourceBarrier barriers[12];
+	auto numBarriers = 0u;
+	for (uint8_t i = 0; i < 6; ++i)
+	{
+		numBarriers = m_cubeMap->SetBarrier(barriers, m_cubeMapLOD, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, i);
+		numBarriers = m_cubeDepth->SetBarrier(barriers, m_cubeMapLOD, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, i);
+	}
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
@@ -918,7 +934,7 @@ void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameInde
 {
 	// Set barriers
 	ResourceBarrier barrier;
-	const auto numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(&barrier, ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	const auto numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(&barrier, ResourceState::PIXEL_SHADER_RESOURCE);
 	pCommandList->Barrier(numBarriers, &barrier);
 
 	// Set pipeline state
@@ -942,8 +958,8 @@ void RayCaster::rayCastVDirect(const CommandList* pCommandList, uint8_t frameInd
 {
 	// Set barriers
 	ResourceBarrier barriers[2];
-	auto numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE);
-	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	auto numBarriers = m_lightMap->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE);
+	numBarriers = m_pDepths[DEPTH_MAP]->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set pipeline state
