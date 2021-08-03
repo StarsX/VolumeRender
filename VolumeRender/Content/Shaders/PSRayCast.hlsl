@@ -91,7 +91,9 @@ min16float4 main(PSIn input) : SV_TARGET
 			// Accumulate color
 			color.w = GetOpacity(color.w, g_stepScale);
 			color.xyz *= transm;
-#ifndef _PRE_MULTIPLIED_
+#ifdef _PRE_MULTIPLIED_
+			color.xyz = GetPremultiplied(color.xyz, g_stepScale);
+#else
 			color.xyz *= color.w;
 #endif
 
