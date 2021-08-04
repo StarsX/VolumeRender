@@ -36,6 +36,9 @@ const auto g_dsFormat = Format::D32_FLOAT;
 VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
 	m_frameIndex(0),
+	m_maxRaySamples(256),
+	m_maxLightSamples(64),
+	m_showMesh(true),
 	m_showFPS(true),
 	m_isPaused(false),
 	m_tracking(false),
@@ -44,6 +47,7 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_particleSize(2.5f),
 	m_volumeFile(L""),
 	m_meshFileName("Media/bunny.obj"),
+	m_volPosScale(0.0f, 0.0f, 0.0f, 10.0f),
 	m_meshPosScale(0.0f, -10.0f, 0.0f, 1.5f)
 {
 #if defined (_DEBUG)
@@ -153,6 +157,10 @@ void VolumeRender::LoadAssets()
 	if (!m_rayCaster->Init(m_descriptorTableCache, g_rtFormat,
 		m_gridSize, m_objectRenderer->GetDepthMaps()))
 		ThrowIfFailed(E_FAIL);
+	const auto volumeSize = m_volPosScale.w * 2.0f;
+	const auto volumePos = XMFLOAT3(m_volPosScale.x, m_volPosScale.y, m_volPosScale.z);
+	m_rayCaster->SetVolumeWorld(volumeSize, volumePos);
+	m_rayCaster->SetLightMapWorld(volumeSize, volumePos);
 
 	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
 	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
@@ -366,6 +374,9 @@ void VolumeRender::OnKeyUp(uint8_t key)
 	case VK_RIGHT:
 		g_renderMethod = static_cast<RenderMethod>((g_renderMethod + 1) % NUM_RENDER_METHOD);
 		break;
+	case 'M':
+		m_showMesh = !m_showMesh;
+		break;
 	}
 }
 
@@ -437,7 +448,21 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 
 	for (auto i = 1; i < argc; ++i)
 	{
-		if (_wcsnicmp(argv[i], L"-gridSize", wcslen(argv[i])) == 0 ||
+		if (_wcsnicmp(argv[i], L"-mesh", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/mesh", wcslen(argv[i])) == 0)
+		{
+			if (++i < argc)
+			{
+				m_meshFileName.resize(wcslen(argv[i]));
+				for (size_t j = 0; j < m_meshFileName.size(); ++j)
+					m_meshFileName[j] = static_cast<char>(argv[i][j]);
+			}
+			m_meshPosScale.x = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_meshPosScale.x;
+			m_meshPosScale.y = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_meshPosScale.y;
+			m_meshPosScale.z = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_meshPosScale.z;
+			m_meshPosScale.w = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_meshPosScale.w;
+		}
+		else if (_wcsnicmp(argv[i], L"-gridSize", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/gridSize", wcslen(argv[i])) == 0)
 			m_gridSize = ++i < argc ? static_cast<uint32_t>(_wtof(argv[i])) : m_gridSize;
 		else if (_wcsnicmp(argv[i], L"-particles", wcslen(argv[i])) == 0 ||
@@ -456,6 +481,20 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 			_wcsnicmp(argv[i], L"/volume", wcslen(argv[i])) == 0)
 		{
 			m_volumeFile = ++i < argc ? argv[i] : m_volumeFile;
+			m_volPosScale.x = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_volPosScale.x;
+			m_volPosScale.y = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_volPosScale.y;
+			m_volPosScale.z = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_volPosScale.z;
+			m_volPosScale.w = ++i < argc ? static_cast<float>(_wtof(argv[i])) : m_volPosScale.w;
+		}
+		else if (_wcsnicmp(argv[i], L"-maxRaySamples", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/maxRaySamples", wcslen(argv[i])) == 0)
+		{
+			m_maxRaySamples = ++i < argc ? _wtoi(argv[i]) : m_maxRaySamples;
+		}
+		else if (_wcsnicmp(argv[i], L"-maxLightSamples", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/maxLightSamples", wcslen(argv[i])) == 0)
+		{
+			m_maxLightSamples = ++i < argc ? _wtoi(argv[i]) : m_maxLightSamples;
 		}
 	}
 }
@@ -482,7 +521,7 @@ void VolumeRender::PopulateCommandList()
 	};
 	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
-	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex);
+	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex, m_showMesh);
 
 	ResourceBarrier barriers[3];
 	const auto pDepth = m_objectRenderer->GetDepthMap(ObjectRenderer::DEPTH_MAP);
@@ -505,7 +544,7 @@ void VolumeRender::PopulateCommandList()
 	pCommandList->RSSetViewports(1, &viewport);
 	pCommandList->RSSetScissorRects(1, &scissorRect);
 
-	m_objectRenderer->Render(pCommandList, m_frameIndex);
+	if (m_showMesh) m_objectRenderer->Render(pCommandList, m_frameIndex);
 
 	switch (g_renderMethod)
 	{
@@ -597,6 +636,7 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 		if (m_showFPS) windowText << setprecision(2) << fixed << fps;
 		else windowText << L"[F1]";
 
+		windowText << L"    [M] Show/hide mesh";
 		windowText << L"    [\x2190][\x2192] ";
 		switch (g_renderMethod)
 		{

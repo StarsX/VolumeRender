@@ -27,6 +27,7 @@ public:
 	bool SetDepthMaps(const XUSG::DepthStencil::uptr* depths);
 
 	void InitVolumeData(const XUSG::CommandList* pCommandList);
+	void SetMaxSamples(uint32_t maxRaySamples, uint32_t maxLightSamples);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
@@ -122,6 +123,8 @@ protected:
 #if _CPU_CUBE_FACE_CULL_ == 1
 	uint32_t				m_visibilityMask;
 #endif
+	uint32_t				m_maxRaySamples;
+	uint32_t				m_maxLightSamples;
 
 	uint8_t					m_cubeFaceCount;
 	uint8_t					m_cubeMapLOD;

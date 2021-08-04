@@ -8,9 +8,6 @@
 #include "Advanced/XUSGDDSLoader.h"
 #undef _INDEPENDENT_DDS_LOADER_
 
-#define NUM_SAMPLES			256
-#define NUM_LIGHT_SAMPLES	64
-
 using namespace std;
 using namespace DirectX;
 using namespace XUSG;
@@ -178,6 +175,8 @@ static inline uint8_t EstimateCubeMapLOD(uint32_t& raySampleCount, uint8_t numMi
 
 RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
+	m_maxRaySamples(256),
+	m_maxLightSamples(64),
 	m_cubeFaceCount(6),
 	m_cubeMapLOD(0),
 	m_lightPt(75.0f, 75.0f, -75.0f),
@@ -313,6 +312,12 @@ void RayCaster::InitVolumeData(const CommandList* pCommandList)
 	pCommandList->Dispatch(DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4));
 }
 
+void RayCaster::SetMaxSamples(uint32_t maxRaySamples, uint32_t maxLightSamples)
+{
+	m_maxRaySamples = maxRaySamples;
+	m_maxLightSamples = maxLightSamples;
+}
+
 void RayCaster::SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos)
 {
 	size *= 0.5f;
@@ -363,7 +368,7 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 		pCbData->Ambient = m_ambient;
 	}
 
-	m_raySampleCount = NUM_SAMPLES;
+	m_raySampleCount = m_maxRaySamples;
 	const auto& depth = m_pDepths[DEPTH_MAP];
 	const auto numMips = m_cubeMap->GetNumMips();
 	const auto cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
@@ -425,7 +430,7 @@ void RayCaster::RayMarchL(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(1, m_srvUavTable);
 	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_SHADOW]);
 	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
-	pCommandList->SetCompute32BitConstant(4, NUM_LIGHT_SAMPLES);
+	pCommandList->SetCompute32BitConstant(4, m_maxLightSamples);
 
 	// Dispatch grid
 	pCommandList->Dispatch(DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4));
@@ -827,7 +832,7 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(3, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetComputeDescriptorTable(4, m_samplerTable);
 	pCommandList->SetCompute32BitConstant(5, m_raySampleCount);
-	pCommandList->SetCompute32BitConstant(5, NUM_LIGHT_SAMPLES, 1);
+	pCommandList->SetCompute32BitConstant(5, m_maxLightSamples, 1);
 #if _CPU_CUBE_FACE_CULL_ == 1
 	pCommandList->SetCompute32BitConstant(6, m_visibilityMask);
 #elif _CPU_CUBE_FACE_CULL_ == 2
@@ -948,8 +953,8 @@ void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameInde
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_VOLUME]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
-	pCommandList->SetGraphics32BitConstant(4, NUM_SAMPLES);
-	pCommandList->SetGraphics32BitConstant(4, NUM_LIGHT_SAMPLES, 1);
+	pCommandList->SetGraphics32BitConstant(4, m_maxRaySamples);
+	pCommandList->SetGraphics32BitConstant(4, m_maxLightSamples, 1);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }
@@ -973,7 +978,7 @@ void RayCaster::rayCastVDirect(const CommandList* pCommandList, uint8_t frameInd
 	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_VOLUME]);
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
-	pCommandList->SetGraphics32BitConstant(4, NUM_SAMPLES);
+	pCommandList->SetGraphics32BitConstant(4, m_maxRaySamples);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }

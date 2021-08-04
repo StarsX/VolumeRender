@@ -79,6 +79,9 @@ private:
 	uint64_t	m_fenceValues[FrameCount];
 
 	// Application state
+	uint32_t	m_maxRaySamples;
+	uint32_t	m_maxLightSamples;
+	bool		m_showMesh;
 	bool		m_showFPS;
 	bool		m_isPaused;
 	StepTimer	m_timer;
@@ -93,6 +96,7 @@ private:
 	float m_particleSize;
 	std::wstring m_volumeFile;
 	std::string m_meshFileName;
+	XMFLOAT4 m_volPosScale;
 	XMFLOAT4 m_meshPosScale;
 
 	void LoadPipeline();
