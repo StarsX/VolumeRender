@@ -484,7 +484,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(3, DescriptorType::SRV, 2, 1);
-		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 2, 0);
 		pipelineLayout->SetConstants(5, 2, 1);
 #if _CPU_CUBE_FACE_CULL_ == 1
 		pipelineLayout->SetConstants(6, 1, 2);
@@ -515,7 +515,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(3, DescriptorType::SRV, 1, 2);
-		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 2, 0);
 		pipelineLayout->SetConstants(5, 1, 1);
 #if _CPU_CUBE_FACE_CULL_ == 1
 		pipelineLayout->SetConstants(6, 1, 2);
@@ -801,8 +801,8 @@ bool RayCaster::createDescriptorTables()
 
 	// Create the sampler
 	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-	const auto samplerLinearClamp = SamplerPreset::LINEAR_CLAMP;
-	descriptorTable->SetSamplers(0, 1, &samplerLinearClamp, m_descriptorTableCache.get());
+	const SamplerPreset samplers[] = { SamplerPreset::LINEAR_CLAMP, SamplerPreset::POINT_CLAMP };
+	descriptorTable->SetSamplers(0, static_cast<uint32_t>(size(samplers)), samplers, m_descriptorTableCache.get());
 	X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(m_descriptorTableCache.get()), false);
 
 	return true;

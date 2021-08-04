@@ -29,6 +29,11 @@ RWTexture2DArray<float> g_rwCubeDepth;
 #endif
 
 //--------------------------------------------------------------------------------------
+// Texture sampler
+//--------------------------------------------------------------------------------------
+SamplerState g_smpPoint;
+
+//--------------------------------------------------------------------------------------
 // Get the local-space position of the grid surface
 //--------------------------------------------------------------------------------------
 float3 GetLocalPos(float2 pos, uint face, RWTexture2DArray<float4> rwCubeMap)
@@ -81,9 +86,7 @@ float3 GetClipPos(float3 rayOrigin, float3 rayDir)
 	float2 uv = xy * 0.5 + 0.5;
 	uv.y = 1.0 - uv.y;
 
-	const float4 depths = g_txDepth.Gather(g_smpLinear, uv);
-	const float2 zs = max(depths.xy, depths.zw);
-	const float z = max(zs.x, zs.y);
+	const float z = g_txDepth.SampleLevel(g_smpPoint, uv, 0.0);
 
 	return float3(xy, z);
 }
