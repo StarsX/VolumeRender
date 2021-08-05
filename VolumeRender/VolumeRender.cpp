@@ -533,7 +533,7 @@ void VolumeRender::PopulateCommandList()
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target
-	const float clearColor[4] = { 0.2f, 0.2f, 0.2f, 0.0f };
+	const float clearColor[4] = { 0.392156899f, 0.584313750f, 0.929411829f, 0.0f };
 	pCommandList->ClearRenderTargetView(m_renderTargets[m_frameIndex]->GetRTV(), clearColor);
 	pCommandList->ClearDepthStencilView(pDepth->GetDSV(), ClearFlag::DEPTH, 1.0f);
 
