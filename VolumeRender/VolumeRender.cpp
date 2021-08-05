@@ -161,6 +161,7 @@ void VolumeRender::LoadAssets()
 	const auto volumePos = XMFLOAT3(m_volPosScale.x, m_volPosScale.y, m_volPosScale.z);
 	m_rayCaster->SetVolumeWorld(volumeSize, volumePos);
 	m_rayCaster->SetLightMapWorld(volumeSize, volumePos);
+	m_rayCaster->SetMaxSamples(m_maxRaySamples, m_maxLightSamples);
 
 	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
 	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
