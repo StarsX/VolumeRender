@@ -30,7 +30,7 @@ public:
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
-	void RenderShadow(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void RenderShadow(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool draw = true);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;

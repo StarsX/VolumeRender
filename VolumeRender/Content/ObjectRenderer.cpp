@@ -145,7 +145,7 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 	}
 }
 
-void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frameIndex)
+void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frameIndex, bool draw)
 {
 	// Set barrier
 	ResourceBarrier barrier;
@@ -158,13 +158,16 @@ void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frame
 	pCommandList->OMSetRenderTargets(0, nullptr, &dsv);
 	pCommandList->ClearDepthStencilView(dsv, ClearFlag::DEPTH, 1.0f);
 
-	// Set shadow viewport
-	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_shadowMapSize), static_cast<float>(m_shadowMapSize));
-	RectRange scissorRect(0, 0, m_shadowMapSize, m_shadowMapSize);
-	pCommandList->RSSetViewports(1, &viewport);
-	pCommandList->RSSetScissorRects(1, &scissorRect);
+	if (draw)
+	{
+		// Set shadow viewport
+		Viewport viewport(0.0f, 0.0f, static_cast<float>(m_shadowMapSize), static_cast<float>(m_shadowMapSize));
+		RectRange scissorRect(0, 0, m_shadowMapSize, m_shadowMapSize);
+		pCommandList->RSSetViewports(1, &viewport);
+		pCommandList->RSSetScissorRects(1, &scissorRect);
 
-	renderDepth(pCommandList, frameIndex, m_cbShadow.get());
+		renderDepth(pCommandList, frameIndex, m_cbShadow.get());
+	}
 }
 
 void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
