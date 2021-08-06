@@ -98,6 +98,7 @@ private:
 	std::string m_meshFileName;
 	XMFLOAT4 m_volPosScale;
 	XMFLOAT4 m_meshPosScale;
+	XMVECTORF32 m_clearColor;
 
 	void LoadPipeline();
 	void LoadAssets();
