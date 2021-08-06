@@ -11,6 +11,7 @@
 
 #include "SharedConsts.h"
 #include "VolumeRender.h"
+#include <DirectXColors.h>
 
 using namespace std;
 using namespace XUSG;
@@ -30,7 +31,8 @@ enum RenderMethod
 const float g_FOVAngleY = XM_PIDIV4;
 
 RenderMethod g_renderMethod = RAY_MARCH_SEPARATE;
-const auto g_rtFormat = Format::B8G8R8A8_UNORM;
+const auto g_backFormat = Format::B8G8R8A8_UNORM;
+const auto g_rtFormat = Format::R11G11B10_FLOAT;
 const auto g_dsFormat = Format::D32_FLOAT;
 
 VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
@@ -144,12 +146,19 @@ void VolumeRender::LoadAssets()
 	N_RETURN(pCommandList->Create(m_device.get(), 0, CommandListType::DIRECT,
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
+	// Clear color setting
+	m_clearColor = { 0.2f, 0.2f, 0.2f, 0.2f };
+	m_clearColor = m_volumeFile.empty() ? m_clearColor : DirectX::Colors::CornflowerBlue;
+	m_clearColor.v = XMVectorPow(m_clearColor, XMVectorReplicate(1.0f / 1.25f));
+	m_clearColor.v = m_clearColor / (XMVectorReplicate(1.25f) - m_clearColor);
+
+	// Init assets
 	vector<Resource::uptr> uploaders(0);
-	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 51, 0);
+	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 52, 0);
 	m_objectRenderer = make_unique<ObjectRenderer>(m_device);
 	if (!m_objectRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
-		uploaders, m_meshFileName.c_str(), g_rtFormat, g_dsFormat, m_meshPosScale))
+		uploaders, m_meshFileName.c_str(), g_backFormat, g_rtFormat, g_dsFormat, m_meshPosScale))
 		ThrowIfFailed(E_FAIL);
 
 	m_rayCaster = make_unique<RayCaster>(m_device);
@@ -222,7 +231,7 @@ void VolumeRender::CreateSwapchain()
 	// Describe and create the swap chain.
 	m_swapChain = SwapChain::MakeUnique();
 	N_RETURN(m_swapChain->Create(m_factory.Get(), Win32Application::GetHwnd(), m_commandQueue.get(),
-		FrameCount, m_width, m_height, g_rtFormat), ThrowIfFailed(E_FAIL));
+		FrameCount, m_width, m_height, g_backFormat), ThrowIfFailed(E_FAIL));
 
 	// This class does not support exclusive full-screen mode and prevents DXGI from responding to the ALT+ENTER shortcut.
 	ThrowIfFailed(m_factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
@@ -238,7 +247,7 @@ void VolumeRender::CreateResources()
 		N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device.get(), m_swapChain.get(), n), ThrowIfFailed(E_FAIL));
 	}
 
-	N_RETURN(m_objectRenderer->SetViewport(m_width, m_height, g_dsFormat), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_objectRenderer->SetViewport(m_width, m_height, g_rtFormat, g_dsFormat, m_clearColor), ThrowIfFailed(E_FAIL));
 	N_RETURN(m_rayCaster->SetDepthMaps(m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
 	N_RETURN(m_particleRenderer->SetViewport(m_width, m_height), ThrowIfFailed(E_FAIL));
 
@@ -259,6 +268,15 @@ void VolumeRender::OnUpdate()
 	pauseTime = m_isPaused ? totalTime - time : pauseTime;
 	timeStep = m_isPaused ? 0.0f : timeStep;
 	time = totalTime - pauseTime;
+
+	const XMFLOAT3 lightPt(75.0f, 75.0f, -75.0f);
+	const XMFLOAT3 lightColor(1.0f, 0.7f, 0.3f);
+	const XMFLOAT3 ambientColor(0.4f, 0.6f, 1.0f);
+	const auto lightIntensity = 2.0f, ambientIntensity = 0.4f;
+	m_objectRenderer->SetLight(lightPt, lightColor, lightIntensity);
+	m_objectRenderer->SetAmbient(ambientColor, ambientIntensity);
+	m_rayCaster->SetLight(lightPt, lightColor, lightIntensity);
+	m_rayCaster->SetAmbient(ambientColor, ambientIntensity);
 
 	// View
 	//const auto eyePt = XMLoadFloat3(&m_eyePt);
@@ -321,7 +339,7 @@ void VolumeRender::OnWindowSizeChanged(int width, int height)
 	if (m_swapChain)
 	{
 		// If the swap chain already exists, resize it.
-		const auto hr = m_swapChain->ResizeBuffers(FrameCount, m_width, m_height, g_rtFormat, 0);
+		const auto hr = m_swapChain->ResizeBuffers(FrameCount, m_width, m_height, g_backFormat, 0);
 
 		if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 		{
@@ -525,19 +543,19 @@ void VolumeRender::PopulateCommandList()
 	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex, m_showMesh);
 
 	ResourceBarrier barriers[3];
+	const auto pColor = m_objectRenderer->GetRenderTarget();
 	const auto pDepth = m_objectRenderer->GetDepthMap(ObjectRenderer::DEPTH_MAP);
 	const auto pShadow = m_objectRenderer->GetDepthMap(ObjectRenderer::SHADOW_MAP);
-	auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
+	auto numBarriers = pColor->SetBarrier(barriers, ResourceState::RENDER_TARGET);
+	//auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = pDepth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
 	numBarriers = pShadow->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target
-	const float clearColor[4] = { 0.392156899f, 0.584313750f, 0.929411829f, 0.0f };
-	pCommandList->ClearRenderTargetView(m_renderTargets[m_frameIndex]->GetRTV(), clearColor);
+	pCommandList->ClearRenderTargetView(pColor->GetRTV(), m_clearColor);
 	pCommandList->ClearDepthStencilView(pDepth->GetDSV(), ClearFlag::DEPTH, 1.0f);
-
-	pCommandList->OMSetRenderTargets(1, &m_renderTargets[m_frameIndex]->GetRTV(), &pDepth->GetDSV());
+	pCommandList->OMSetRenderTargets(1, &pColor->GetRTV(), &pDepth->GetDSV());
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
@@ -572,6 +590,13 @@ void VolumeRender::PopulateCommandList()
 			m_rayCaster->GetLightSRVTable());
 	}
 	
+	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
+	numBarriers = pColor->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	pCommandList->Barrier(numBarriers, barriers);
+	pCommandList->OMSetRenderTargets(1, &m_renderTargets[m_frameIndex]->GetRTV());
+
+	m_objectRenderer->ToneMap(pCommandList);
+
 	// Indicate that the back buffer will now be used to present.
 	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::PRESENT);
 	pCommandList->Barrier(numBarriers, barriers);

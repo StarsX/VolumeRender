@@ -211,7 +211,7 @@ bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
 
 	const uint8_t numMips = 5;
 	m_cubeMap = Texture2D::MakeUnique();
-	N_RETURN(m_cubeMap->Create(m_device.get(), gridSize, gridSize, Format::R8G8B8A8_UNORM, 6,
+	N_RETURN(m_cubeMap->Create(m_device.get(), gridSize, gridSize, Format::R16G16B16A16_FLOAT, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
 
 	m_cubeDepth = Texture2D::MakeUnique();

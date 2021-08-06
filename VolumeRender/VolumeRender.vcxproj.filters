@@ -43,6 +43,9 @@
     <Filter Include="XUSG\Optional">
       <UniqueIdentifier>{f0f25b24-b3cf-41e6-b367-1cab524f2301}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\VolumeData">
+      <UniqueIdentifier>{5788f631-faf1-411f-a31b-d88dc85a7df5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common\d3dx12.h">
@@ -141,9 +144,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Content\Shaders\CSInitGridData.hlsl">
-      <Filter>Shaders\RayCaster</Filter>
-    </FxCompile>
     <FxCompile Include="Content\Shaders\CSRayMarch.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
@@ -174,9 +174,6 @@
     <FxCompile Include="Content\Shaders\PSResolveOIT.hlsl">
       <Filter>Shaders\ParticleSys</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\CSR32FToRGBA16F.hlsl">
-      <Filter>Shaders\RayCaster</Filter>
-    </FxCompile>
     <FxCompile Include="Content\Shaders\PSRayCast.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
@@ -197,6 +194,15 @@
     </FxCompile>
     <FxCompile Include="Content\Shaders\VSDepth.hlsl">
       <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\PSToneMap.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\CSInitGridData.hlsl">
+      <Filter>Shaders\VolumeData</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\CSR32FToRGBA16F.hlsl">
+      <Filter>Shaders\VolumeData</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

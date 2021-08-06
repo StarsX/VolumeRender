@@ -26,7 +26,7 @@ cbuffer cbPerFrame
 	float4 g_ambient;
 };
 
-static min16float3 baseColor = { 0.8, 1.0, 0.2 };
+static min16float3 baseColor = { 1.0, 0.6, 0.2 };
 
 //--------------------------------------------------------------------------------------
 // Textures
@@ -78,7 +78,7 @@ min16float4 main(PSIn input) : SV_TARGET
 	const min16float3 lightColor = min16float3(g_lightColor.xyz * g_lightColor.w);
 	const min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
 	min16float3 result = baseColor * NoL;
-	result += pow(NoH, 64.0) * Fresnel(NoV, 0.08);
+	result += pow(NoH, 64.0) * Fresnel(NoV, 0.08) * PI;
 	result *= lightColor * min16float(shadow);
 	result += baseColor * ambient * lerp(0.5, 1.0, N.y * 0.5 + 0.5);
 

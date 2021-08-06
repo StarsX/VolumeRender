@@ -43,7 +43,7 @@ ObjectRenderer::~ObjectRenderer()
 
 bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
-	const char* fileName, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
+	const char* fileName, Format backFormat, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
 {
 	m_descriptorTableCache = descriptorTableCache;
 	m_posScale = posScale;
@@ -79,16 +79,21 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	// Create pipelines
 	N_RETURN(createInputLayout(), false);
 	N_RETURN(createPipelineLayouts(), false);
-	N_RETURN(createPipelines(rtFormat, dsFormat, smFormat), false);
+	N_RETURN(createPipelines(backFormat, rtFormat, dsFormat, smFormat), false);
 
 	return true;
 }
 
-bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format dsFormat)
+bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format rtFormat,
+	Format dsFormat, const float* clearColor)
 {
 	m_viewport = XMUINT2(width, height);
 
 	// Recreate window size-dependent resource
+	m_color = RenderTarget::MakeUnique();
+	N_RETURN(m_color->Create(m_device.get(), width, height, rtFormat, 1,
+		ResourceFlag::NONE, 1, 1, clearColor, false, L"RenderTarget"), false);
+
 	m_depths[DEPTH_MAP] = DepthStencil::MakeUnique();
 	N_RETURN(m_depths[DEPTH_MAP]->Create(m_device.get(), width, height, dsFormat,
 		ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Depth"), false);
@@ -189,6 +194,25 @@ void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->DrawIndexed(m_numIndices, 1, 0, 0, 0);
 }
 
+void ObjectRenderer::ToneMap(const CommandList* pCommandList)
+{
+	// Set pipeline state
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[TONE_MAP]);
+	pCommandList->SetPipelineState(m_pipelines[TONE_MAP]);
+
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+
+	// Set descriptor tables
+	pCommandList->SetGraphicsDescriptorTable(0, m_srvTables[SRV_TABLE_COLOR]);
+
+	pCommandList->Draw(3, 1, 0, 0);
+}
+
+RenderTarget* ObjectRenderer::GetRenderTarget() const
+{
+	return m_color.get();
+}
+
 DepthStencil* ObjectRenderer::GetDepthMap(DepthIndex index) const
 {
 	return m_depths[index].get();
@@ -269,10 +293,19 @@ bool ObjectRenderer::createPipelineLayouts()
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
+	// Tone mapping
+	{
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRange(0, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
+		X_RETURN(m_pipelineLayouts[TONE_MAP], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+			PipelineLayoutFlag::NONE, L"ToneMappingLayout"), false);
+	}
+
 	return true;
 }
 
-bool ObjectRenderer::createPipelines(Format rtFormat, Format dsFormat, Format dsFormatH)
+bool ObjectRenderer::createPipelines(Format backFormat, Format rtFormat, Format dsFormat, Format dsFormatH)
 {
 	auto vsIndex = 0u;
 	auto psIndex = 0u;
@@ -308,12 +341,33 @@ bool ObjectRenderer::createPipelines(Format rtFormat, Format dsFormat, Format ds
 		X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
 	}
 
+	// Tone mapping
+	{
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSToneMap.cso"), false);
+
+		const auto state = Graphics::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[TONE_MAP]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->DSSetState(Graphics::DepthStencilPreset::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		state->OMSetRTVFormats(&backFormat, 1);
+		X_RETURN(m_pipelines[TONE_MAP], state->GetPipeline(m_graphicsPipelineCache.get(), L"ToneMapping"), false);
+	}
+
 	return true;
 }
 
 bool ObjectRenderer::createDescriptorTables()
 {
 	// Create SRV tables
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_color->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_COLOR], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_depths[DEPTH_MAP]->GetSRV());
