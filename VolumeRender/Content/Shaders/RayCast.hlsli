@@ -18,8 +18,13 @@ cbuffer cbPerObject
 	matrix g_worldViewProj;
 	matrix g_shadowWVP;
 	float4x3 g_worldI;
+	float4x4 g_localToLight;
+};
+
+cbuffer cbPerFrame
+{
+	float3 g_eyePt;
 	float4x3 g_lightMapWorld;
-	float4 g_eyePos;
 	float4 g_lightPos;
 	float4 g_lightColor;
 	float4 g_ambient;

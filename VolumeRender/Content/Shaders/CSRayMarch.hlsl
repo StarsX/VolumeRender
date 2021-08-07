@@ -104,7 +104,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	DTid.z = g_faces[DTid.z];
 #endif
 
-	float3 rayOrigin = mul(g_eyePos, g_worldI);
+	float3 rayOrigin = mul(float4(g_eyePt, 1.0), g_worldI);
 	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
 
 #if !defined(_CPU_CUBE_FACE_CULL_) || _CPU_CUBE_FACE_CULL_ == 0

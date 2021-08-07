@@ -12,17 +12,22 @@ using namespace std;
 using namespace DirectX;
 using namespace XUSG;
 
+struct CBPerFrame
+{
+	XMFLOAT4 EyePos;
+	XMFLOAT3X4 LightMapWorld;
+	XMFLOAT4 LightPos;
+	XMFLOAT4 LightColor;
+	XMFLOAT4 Ambient;
+};
+
 struct CBPerObject
 {
 	XMFLOAT4X4 WorldViewProjI;
 	XMFLOAT4X4 WorldViewProj;
 	XMFLOAT4X4 ShadowWVP;
 	XMFLOAT3X4 WorldI;
-	XMFLOAT3X4 LightMapWorld;
-	XMFLOAT4 EyePos;
-	XMFLOAT4 LightPos;
-	XMFLOAT4 LightColor;
-	XMFLOAT4 Ambient;
+	XMFLOAT3X4 LocalToLight;
 };
 
 #ifdef _CPU_CUBE_FACE_CULL_
@@ -224,6 +229,10 @@ bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
 		Format::R11G11B10_FLOAT,ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS,
 		1, MemoryType::DEFAULT, L"LightMap"), false);
 
+	m_cbPerFrame = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, L"RayCaster.CBPerFrame"), false);
+
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, L"RayCaster.CBPerObject"), false);
@@ -347,44 +356,53 @@ void RayCaster::SetAmbient(const XMFLOAT3& color, float intensity)
 
 void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX shadowVP, const XMFLOAT3& eyePt)
 {
-	// General matrices
-	const auto world = XMLoadFloat3x4(&m_volumeWorld);
-	const auto worldI = XMMatrixInverse(nullptr, world);
-	const auto worldViewProj = world * viewProj;
-
+	// Per-frame
 	{
-		// Screen space matrices
-		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
-		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(worldViewProj));
-		XMStoreFloat4x4(&pCbData->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
-		XMStoreFloat4x4(&pCbData->ShadowWVP, XMMatrixTranspose(world * shadowVP));
-		XMStoreFloat3x4(&pCbData->WorldI, worldI);
-
-		// Lighting
-		pCbData->LightMapWorld = m_lightMapWorld;
+		const auto pCbData = reinterpret_cast<CBPerFrame*>(m_cbPerFrame->Map(frameIndex));
 		pCbData->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
+		pCbData->LightMapWorld = m_lightMapWorld;
 		pCbData->LightPos = XMFLOAT4(m_lightPt.x, m_lightPt.y, m_lightPt.z, 1.0f);
 		pCbData->LightColor = m_lightColor;
 		pCbData->Ambient = m_ambient;
 	}
 
-	m_raySampleCount = m_maxRaySamples;
-	const auto& depth = m_pDepths[DEPTH_MAP];
-	const auto numMips = m_cubeMap->GetNumMips();
-	const auto cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
-	const auto width = static_cast<float>(depth->GetWidth());
-	const auto height = static_cast<float>(depth->GetHeight());
-	const auto viewport = XMVectorSet(width, height, 1.0f, 1.0f);
-	m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, numMips, cubeMapSize, worldViewProj, viewport);
+	// Per object
+	{
+		const auto lightWorld = XMLoadFloat3x4(&m_lightMapWorld);
+		const auto lightWorldI = XMMatrixInverse(nullptr, lightWorld);
+
+		const auto world = XMLoadFloat3x4(&m_volumeWorld);
+		const auto worldI = XMMatrixInverse(nullptr, world);
+		const auto worldViewProj = world * viewProj;
+		const auto localToLight = world * lightWorldI;
+
+		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
+		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(worldViewProj));
+		XMStoreFloat4x4(&pCbData->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
+		XMStoreFloat4x4(&pCbData->ShadowWVP, XMMatrixTranspose(world * shadowVP));
+		XMStoreFloat3x4(&pCbData->WorldI, worldI);
+		XMStoreFloat3x4(&pCbData->LocalToLight, localToLight);
+
+		{
+			m_raySampleCount = m_maxRaySamples;
+			const auto& depth = m_pDepths[DEPTH_MAP];
+			const auto numMips = m_cubeMap->GetNumMips();
+			const auto cubeMapSize = static_cast<float>(m_cubeMap->GetWidth());
+			const auto width = static_cast<float>(depth->GetWidth());
+			const auto height = static_cast<float>(depth->GetHeight());
+			const auto viewport = XMVectorSet(width, height, 1.0f, 1.0f);
+			m_cubeMapLOD = EstimateCubeMapLOD(m_raySampleCount, numMips, cubeMapSize, worldViewProj, viewport);
 
 #if _CPU_CUBE_FACE_CULL_ == 1
-	m_visibilityMask = GenVisibilityMask(worldI, eyePt);
+			m_visibilityMask = GenVisibilityMask(worldI, eyePt);
 #elif _CPU_CUBE_FACE_CULL_ == 2
-	{
-		const auto pCbData = reinterpret_cast<CBCubeFaceList*>(m_cbCubeFaceList->Map(frameIndex));
-		m_cubeFaceCount = GenVisibleCubeFaceList(*pCbData, worldI, eyePt);
-	}
+			{
+				const auto pCbData = reinterpret_cast<CBCubeFaceList*>(m_cbCubeFaceList->Map(frameIndex));
+				m_cubeFaceCount = GenVisibleCubeFaceList(*pCbData, worldI, eyePt);
+			}
 #endif
+		}
+	}
 }
 
 void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, uint8_t flags)
@@ -480,16 +498,16 @@ bool RayCaster::createPipelineLayouts()
 	// Ray marching
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(3, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 2, 0);
-		pipelineLayout->SetConstants(5, 2, 1);
+		pipelineLayout->SetConstants(5, 2, 2);
 #if _CPU_CUBE_FACE_CULL_ == 1
-		pipelineLayout->SetConstants(6, 1, 2);
+		pipelineLayout->SetConstants(6, 1, 3);
 #elif _CPU_CUBE_FACE_CULL_ == 2
-		pipelineLayout->SetRootCBV(6, 2);
+		pipelineLayout->SetRootCBV(6, 3);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayMarchingLayout"), false);
@@ -498,12 +516,12 @@ bool RayCaster::createPipelineLayouts()
 	// Light space ray marching
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 1, 1);
+		pipelineLayout->SetConstants(4, 1, 2);
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_L], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"LightSpaceRayMarchingLayout"), false);
 	}
@@ -511,16 +529,16 @@ bool RayCaster::createPipelineLayouts()
 	// View space ray marching
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(3, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 2, 0);
-		pipelineLayout->SetConstants(5, 1, 1);
+		pipelineLayout->SetConstants(5, 1, 2);
 #if _CPU_CUBE_FACE_CULL_ == 1
-		pipelineLayout->SetConstants(6, 1, 2);
+		pipelineLayout->SetConstants(6, 1, 3);
 #elif _CPU_CUBE_FACE_CULL_ == 2
-		pipelineLayout->SetRootCBV(6, 2);
+		pipelineLayout->SetRootCBV(6, 3);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceRayMarchingLayout"), false);
@@ -529,7 +547,7 @@ bool RayCaster::createPipelineLayouts()
 	// Cube rendering
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
@@ -543,7 +561,7 @@ bool RayCaster::createPipelineLayouts()
 	// Screen-space ray casting from cube map
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
@@ -558,11 +576,11 @@ bool RayCaster::createPipelineLayouts()
 	// Direct ray casting
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 2, 1, 0, Shader::Stage::PS);
+		pipelineLayout->SetConstants(4, 2, 2, 0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
@@ -574,11 +592,11 @@ bool RayCaster::createPipelineLayouts()
 	// View space direct ray casting
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetRange(0, DescriptorType::CBV, 1, 0, 0, DescriptorFlag::DATA_STATIC);
+		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 1, 1, 0, Shader::Stage::PS);
+		pipelineLayout->SetConstants(4, 1, 2, 0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
@@ -719,7 +737,12 @@ bool RayCaster::createDescriptorTables()
 	for (uint8_t i = 0; i < FrameCount; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_cbPerObject->GetCBV(i));
+		const Descriptor descriptors[] =
+		{
+			m_cbPerObject->GetCBV(i),
+			m_cbPerFrame->GetCBV(i)
+		};
+		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
 		X_RETURN(m_cbvTables[i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 

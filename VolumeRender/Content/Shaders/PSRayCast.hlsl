@@ -44,7 +44,7 @@ float3 GetClipPos(uint2 idx, float2 uv)
 min16float4 main(PSIn input) : SV_TARGET
 {
 	float3 rayOrigin = TexcoordToLocalPos(input.UV);	// The point on the near plane
-	const float3 localSpaceEyePt = mul(g_eyePos, g_worldI);
+	const float3 localSpaceEyePt = mul(float4(g_eyePt, 1.0), g_worldI);
 
 	const float3 rayDir = normalize(rayOrigin - localSpaceEyePt);
 	if (!ComputeRayOrigin(rayOrigin, rayDir)) discard;
