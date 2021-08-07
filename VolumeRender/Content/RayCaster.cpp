@@ -737,8 +737,8 @@ bool RayCaster::createDescriptorTables()
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const Descriptor descriptors[] =
 		{
-			m_cbPerFrame->GetCBV(i),
-			m_cbPerObject->GetCBV(i)
+			m_cbPerObject->GetCBV(i),
+			m_cbPerFrame->GetCBV(i)
 		};
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
 		X_RETURN(m_cbvTables[i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
