@@ -110,6 +110,7 @@ protected:
 	XUSG::Texture2D::uptr		m_cubeMap;
 	XUSG::Texture2D::uptr		m_cubeDepth;
 	XUSG::Texture3D::uptr		m_lightMap;
+	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 #if _CPU_CUBE_FACE_CULL_ == 2
 	XUSG::ConstantBuffer::uptr	m_cbCubeFaceList;

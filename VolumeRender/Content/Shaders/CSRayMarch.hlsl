@@ -104,7 +104,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	DTid.z = g_faces[DTid.z];
 #endif
 
-	float3 rayOrigin = mul(g_eyePos, g_worldI);
+	float3 rayOrigin = mul(float4(g_eyePt, 1.0), g_worldI);
 	//if (rayOrigin[DTid.z >> 1] == 0.0) return;
 
 #if !defined(_CPU_CUBE_FACE_CULL_) || _CPU_CUBE_FACE_CULL_ == 0
@@ -123,9 +123,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
 #endif
 	
 #ifdef _POINT_LIGHT_
-	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI);
+	const float3 localSpaceLightPt = mul(float4(g_lightPt, 1.0), g_worldI);
 #else
-	const float3 localSpaceLightPt = mul(g_lightPos.xyz, (float3x3)g_worldI);
+	const float3 localSpaceLightPt = mul(g_lightPt, (float3x3)g_worldI);
 	const float3 lightStep = normalize(localSpaceLightPt) * g_lightStepScale;
 #endif
 
