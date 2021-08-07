@@ -14,6 +14,9 @@
 cbuffer cbSampleRes
 {
 	uint g_numSamples;
+#ifdef _HAS_LIGHT_PROBE_
+	uint g_hasLightProbe;
+#endif
 	uint g_numLightSamples; // Only for non-light-separate paths, which need both view and light ray samples
 };
 
@@ -27,7 +30,7 @@ static const min16float g_lightStepScale = g_maxDist / min16float(g_numLightSamp
 //--------------------------------------------------------------------------------------
 // Textures
 //--------------------------------------------------------------------------------------
-Texture3D<float4> g_txGrid;
+Texture3D g_txGrid;
 
 #ifdef _LIGHT_PASS_
 Texture3D<float3> g_txLightMap;
@@ -39,6 +42,10 @@ Texture2D<float> g_txDepth;
 
 #if defined(_HAS_SHADOW_MAP_) && !defined(_LIGHT_PASS_)
 Texture2D<float> g_txShadow;
+#endif
+
+#if defined(_HAS_LIGHT_PROBE_) && !defined(_LIGHT_PASS_)
+TextureCube<float3> g_txIrradiance;
 #endif
 
 //--------------------------------------------------------------------------------------
@@ -57,6 +64,33 @@ min16float4 GetSample(float3 uvw)
 }
 
 //--------------------------------------------------------------------------------------
+// Sample density field
+//--------------------------------------------------------------------------------------
+float3 GetDensityGradient(float3 uvw)
+{
+	static const int3 offsets[] =
+	{
+		int3(-1, 0, 0),
+		int3(1, 0, 0),
+#ifdef _TEXCOORD_INVERT_Y_
+		int3(0, 1, 0),
+		int3(0, -1, 0),
+#else
+		int3(0, -1, 0),
+		int3(0, 1, 0),
+#endif
+		int3(0, 0, -1),
+		int3(0, 0, 1)
+	};
+	
+	float q[6];
+	[unroll]
+	for (uint i = 0; i < 6; ++i) q[i] = g_txGrid.SampleLevel(g_smpLinear, uvw, 0.0, offsets[i]).w;
+
+	return float3(q[1] - q[0], q[3] - q[2], q[5] - q[4]);
+}
+
+//--------------------------------------------------------------------------------------
 // Get opacity
 //--------------------------------------------------------------------------------------
 min16float GetOpacity(min16float density, min16float stepScale)
@@ -65,7 +99,7 @@ min16float GetOpacity(min16float density, min16float stepScale)
 }
 
 //--------------------------------------------------------------------------------------
-// Get opacity
+// Get premultiplied color
 //--------------------------------------------------------------------------------------
 #ifdef _PRE_MULTIPLIED_
 min16float3 GetPremultiplied(min16float3 color, min16float stepScale)
@@ -102,6 +136,13 @@ min16float ShadowTest(float3 pos, Texture2D<float> txDepth)
 	const float depth = txDepth.SampleLevel(g_smpLinear, shadowUV, 0.0);
 
 	return lsPos.z < depth;
+}
+#endif
+
+#if defined(_HAS_LIGHT_PROBE_) && !defined(_LIGHT_PASS_)
+float3 GetIrradiance(float3 dir)
+{
+	return g_txIrradiance.SampleLevel(g_smpLinear, dir, 0.0);
 }
 #endif
 
@@ -172,12 +213,13 @@ float3 GetLight(float3 pos, float3 step)
 
 	if (shadow > 0.0)
 	{
+		float3 rayPos = pos;
 		for (uint i = 0; i < g_numLightSamples; ++i)
 		{
 			// Update position along light ray
-			pos += step;
-			if (any(abs(pos) > 1.0)) break;
-			const float3 uvw = LocalToTex3DSpace(pos);
+			rayPos += step;
+			if (any(abs(rayPos) > 1.0)) break;
+			const float3 uvw = LocalToTex3DSpace(rayPos);
 
 			// Get a sample along light ray
 			const min16float density = GetSample(uvw).w;
@@ -188,8 +230,40 @@ float3 GetLight(float3 pos, float3 step)
 		}
 	}
 
+#ifdef _HAS_LIGHT_PROBE_
+	min16float ao = 1.0;
+	float3 irradiance;
+	if (g_hasLightProbe)
+	{
+		const float3 uvw = LocalToTex3DSpace(pos);
+		const float3 rayDir = -normalize(GetDensityGradient(uvw));
+		const float3 step = rayDir * g_lightStepScale;
+		irradiance = GetIrradiance(mul(rayDir, (float3x3)g_world));
+
+		float3 rayPos = pos;
+		for (uint i = 0; i < g_numSamples; ++i)
+		{
+			// Update position along light ray
+			rayPos += step;
+			if (any(abs(rayPos) > 1.0)) break;
+			const float3 uvw = LocalToTex3DSpace(rayPos);
+
+			// Get a sample along light ray
+			const min16float density = GetSample(uvw).w;
+
+			// Attenuate ray-throughput along light direction
+			ao *= 1.0 - GetOpacity(density, g_lightStepScale);
+			if (ao < ZERO_THRESHOLD) break;
+		}
+	}
+#endif
+
 	const min16float3 lightColor = min16float3(g_lightColor.xyz * g_lightColor.w);
-	const min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
+	min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
+
+#ifdef _HAS_LIGHT_PROBE_
+	ambient = g_hasLightProbe ? min16float3(irradiance) * ao : ambient;
+#endif
 
 	return lightColor * shadow + ambient;
 }

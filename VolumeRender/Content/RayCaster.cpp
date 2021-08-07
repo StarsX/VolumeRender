@@ -27,6 +27,7 @@ struct CBPerObject
 	XMFLOAT4X4 WorldViewProj;
 	XMFLOAT4X4 ShadowWVP;
 	XMFLOAT3X4 WorldI;
+	XMFLOAT3X4 World;
 	XMFLOAT3X4 LocalToLight;
 };
 
@@ -180,6 +181,8 @@ static inline uint8_t EstimateCubeMapLOD(uint32_t& raySampleCount, uint8_t numMi
 
 RayCaster::RayCaster(const Device::sptr& device) :
 	m_device(device),
+	m_pDepths(nullptr),
+	m_pIrradiance(nullptr),
 	m_maxRaySamples(256),
 	m_maxLightSamples(64),
 	m_cubeFaceCount(6),
@@ -321,6 +324,11 @@ void RayCaster::InitVolumeData(const CommandList* pCommandList)
 	pCommandList->Dispatch(DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4), DIV_UP(m_gridSize, 4));
 }
 
+void RayCaster::SetIrradiance(const ShaderResource* pIrradiance)
+{
+	m_pIrradiance = pIrradiance;
+}
+
 void RayCaster::SetMaxSamples(uint32_t maxRaySamples, uint32_t maxLightSamples)
 {
 	m_maxRaySamples = maxRaySamples;
@@ -379,6 +387,7 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 		XMStoreFloat4x4(&pCbData->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
 		XMStoreFloat4x4(&pCbData->ShadowWVP, XMMatrixTranspose(world * shadowVP));
 		XMStoreFloat3x4(&pCbData->WorldI, XMMatrixInverse(nullptr, world));
+		XMStoreFloat3x4(&pCbData->World, world);
 		XMStoreFloat3x4(&pCbData->LocalToLight, world * lightWorldI);
 
 		{
@@ -447,6 +456,7 @@ void RayCaster::RayMarchL(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(2, m_srvTables[SRV_TABLE_SHADOW]);
 	pCommandList->SetComputeDescriptorTable(3, m_samplerTable);
 	pCommandList->SetCompute32BitConstant(4, m_maxLightSamples);
+	pCommandList->SetCompute32BitConstant(4, m_pIrradiance ? 1 : 0, 1);
 
 	// Dispatch grid
 	pCommandList->Dispatch(DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4));
@@ -499,9 +509,9 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 2, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
-		pipelineLayout->SetRange(3, DescriptorType::SRV, 2, 1);
+		pipelineLayout->SetRange(3, DescriptorType::SRV, 3, 1);
 		pipelineLayout->SetRange(4, DescriptorType::SAMPLER, 2, 0);
-		pipelineLayout->SetConstants(5, 2, 2);
+		pipelineLayout->SetConstants(5, 3, 2);
 #if _CPU_CUBE_FACE_CULL_ == 1
 		pipelineLayout->SetConstants(6, 1, 3);
 #elif _CPU_CUBE_FACE_CULL_ == 2
@@ -517,9 +527,9 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 1, 2);
+		pipelineLayout->SetConstants(4, 2, 2);
 		X_RETURN(m_pipelineLayouts[RAY_MARCH_L], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"LightSpaceRayMarchingLayout"), false);
 	}
@@ -576,9 +586,9 @@ bool RayCaster::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::CBV, 2, 0, 0, DescriptorFlag::DATA_STATIC);
 		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
-		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 3, 1);
 		pipelineLayout->SetRange(3, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout->SetConstants(4, 2, 2, 0, Shader::Stage::PS);
+		pipelineLayout->SetConstants(4, 3, 2, 0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
@@ -798,19 +808,28 @@ bool RayCaster::createDescriptorTables()
 		X_RETURN(m_srvMipTables[i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
-	if (m_pDepths[DEPTH_MAP])
+	if (m_pDepths)
 	{
+		if (m_pDepths[DEPTH_MAP])
 		{
 			const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 			descriptorTable->SetDescriptors(0, 1, &m_pDepths[DEPTH_MAP]->GetSRV());
 			X_RETURN(m_srvTables[SRV_TABLE_DEPTH], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 		}
 
+		if (m_pDepths[SHADOW_MAP])
 		{
 			const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 			descriptorTable->SetDescriptors(0, 1, &m_pDepths[SHADOW_MAP]->GetSRV());
 			X_RETURN(m_srvTables[SRV_TABLE_SHADOW], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 		}
+	}
+
+	if (m_pIrradiance)
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_pIrradiance->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_IRRADIANCE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Create UAV table
@@ -853,7 +872,8 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetComputeDescriptorTable(3, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetComputeDescriptorTable(4, m_samplerTable);
 	pCommandList->SetCompute32BitConstant(5, m_raySampleCount);
-	pCommandList->SetCompute32BitConstant(5, m_maxLightSamples, 1);
+	pCommandList->SetCompute32BitConstant(5, m_pIrradiance ? 1 : 0, 1);
+	pCommandList->SetCompute32BitConstant(5, m_maxLightSamples, 2);
 #if _CPU_CUBE_FACE_CULL_ == 1
 	pCommandList->SetCompute32BitConstant(6, m_visibilityMask);
 #elif _CPU_CUBE_FACE_CULL_ == 2
@@ -975,7 +995,8 @@ void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameInde
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_DEPTH]);
 	pCommandList->SetGraphicsDescriptorTable(3, m_samplerTable);
 	pCommandList->SetGraphics32BitConstant(4, m_maxRaySamples);
-	pCommandList->SetGraphics32BitConstant(4, m_maxLightSamples, 1);
+	pCommandList->SetGraphics32BitConstant(4, m_pIrradiance ? 1 : 0, 1);
+	pCommandList->SetGraphics32BitConstant(4, m_maxLightSamples, 2);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }

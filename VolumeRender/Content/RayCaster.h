@@ -27,6 +27,7 @@ public:
 	bool SetDepthMaps(const XUSG::DepthStencil::uptr* depths);
 
 	void InitVolumeData(const XUSG::CommandList* pCommandList);
+	void SetIrradiance(const XUSG::ShaderResource* pIrradiance);
 	void SetMaxSamples(uint32_t maxRaySamples, uint32_t maxLightSamples);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
@@ -65,6 +66,7 @@ protected:
 		SRV_TABLE_LIGHT_MAP,
 		SRV_TABLE_DEPTH,
 		SRV_TABLE_SHADOW,
+		SRV_TABLE_IRRADIANCE,
 
 		NUM_SRV_TABLE
 	};
@@ -117,6 +119,7 @@ protected:
 #endif
 
 	const XUSG::DepthStencil::uptr* m_pDepths;
+	const XUSG::ShaderResource*	m_pIrradiance;
 
 	uint32_t				m_gridSize;
 	uint32_t				m_lightGridSize;
