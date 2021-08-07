@@ -16,7 +16,7 @@ cbuffer cbPerFrame
 {
 	float3 g_eyePt;
 	float4x3 g_lightMapWorld;
-	float4 g_lightPos;
+	float3 g_lightPt;
 	float4 g_lightColor;
 	float4 g_ambient;
 };

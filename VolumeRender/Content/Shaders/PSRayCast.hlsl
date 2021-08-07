@@ -56,9 +56,9 @@ min16float4 main(PSIn input) : SV_TARGET
 #endif
 
 #ifdef _POINT_LIGHT_
-	const float3 localSpaceLightPt = mul(g_lightPos, g_worldI);
+	const float3 localSpaceLightPt = mul(float4(g_lightPt, 1.0), g_worldI);
 #else
-	const float3 localSpaceLightPt = mul(g_lightPos.xyz, (float3x3)g_worldI);
+	const float3 localSpaceLightPt = mul(g_lightPt, (float3x3)g_worldI);
 	const float3 lightStep = normalize(localSpaceLightPt) * g_lightStepScale;
 #endif
 

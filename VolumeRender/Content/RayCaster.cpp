@@ -372,16 +372,14 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 		const auto lightWorldI = XMMatrixInverse(nullptr, lightWorld);
 
 		const auto world = XMLoadFloat3x4(&m_volumeWorld);
-		const auto worldI = XMMatrixInverse(nullptr, world);
 		const auto worldViewProj = world * viewProj;
-		const auto localToLight = world * lightWorldI;
 
 		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
 		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(worldViewProj));
 		XMStoreFloat4x4(&pCbData->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
 		XMStoreFloat4x4(&pCbData->ShadowWVP, XMMatrixTranspose(world * shadowVP));
-		XMStoreFloat3x4(&pCbData->WorldI, worldI);
-		XMStoreFloat3x4(&pCbData->LocalToLight, localToLight);
+		XMStoreFloat3x4(&pCbData->WorldI, XMMatrixInverse(nullptr, world));
+		XMStoreFloat3x4(&pCbData->LocalToLight, world * lightWorldI);
 
 		{
 			m_raySampleCount = m_maxRaySamples;
