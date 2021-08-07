@@ -10,17 +10,8 @@
 #define DENSITY_SCALE	1.0
 
 //--------------------------------------------------------------------------------------
-// Constant buffer
+// Constant buffers
 //--------------------------------------------------------------------------------------
-cbuffer cbPerObject
-{
-	matrix g_worldViewProjI;
-	matrix g_worldViewProj;
-	matrix g_shadowWVP;
-	float4x3 g_worldI;
-	float4x4 g_localToLight;
-};
-
 cbuffer cbPerFrame
 {
 	float3 g_eyePt;
@@ -28,6 +19,15 @@ cbuffer cbPerFrame
 	float4 g_lightPos;
 	float4 g_lightColor;
 	float4 g_ambient;
+};
+
+cbuffer cbPerObject
+{
+	matrix g_worldViewProjI;
+	matrix g_worldViewProj;
+	matrix g_shadowWVP;
+	float4x3 g_worldI;
+	float4x3 g_localToLight;
 };
 
 //--------------------------------------------------------------------------------------

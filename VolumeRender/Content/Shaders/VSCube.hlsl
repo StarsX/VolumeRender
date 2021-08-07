@@ -31,7 +31,7 @@ static const float3x3 planes[6] =
 };
 
 //--------------------------------------------------------------------------------------
-// Vertex shader used for screen-space post-processing
+// Vertex shader used for cube rendering
 //--------------------------------------------------------------------------------------
 VSOut main(uint vid : SV_VertexID, uint iid : SV_InstanceID)
 {
