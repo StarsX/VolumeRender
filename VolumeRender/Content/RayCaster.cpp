@@ -537,7 +537,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(3, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[RENDER_CUBE], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
-			PipelineLayoutFlag::NONE, L"CubeLayout"), false);
+			PipelineLayoutFlag::NONE, L"CubeRenderingLayout"), false);
 	}
 
 	// Screen-space ray casting from cube map
@@ -660,7 +660,7 @@ bool RayCaster::createPipelines(Format rtFormat)
 		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
 		state->OMSetBlendState(Graphics::PREMULTIPLITED, m_graphicsPipelineCache.get());
 		state->OMSetRTVFormats(&rtFormat, 1);
-		X_RETURN(m_pipelines[RENDER_CUBE], state->GetPipeline(m_graphicsPipelineCache.get(), L"RayCasting"), false);
+		X_RETURN(m_pipelines[RENDER_CUBE], state->GetPipeline(m_graphicsPipelineCache.get(), L"CubeRendering"), false);
 	}
 
 	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
