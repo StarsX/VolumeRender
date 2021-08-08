@@ -40,7 +40,7 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_frameIndex(0),
 	m_maxRaySamples(256),
 	m_maxLightSamples(64),
-	m_showMesh(true),
+	m_showMesh(false),
 	m_showFPS(true),
 	m_isPaused(false),
 	m_tracking(false),
@@ -152,7 +152,7 @@ void VolumeRender::LoadAssets()
 	m_clearColor = { 0.2f, 0.2f, 0.2f, 0.2f };
 	m_clearColor = m_volumeFile.empty() ? m_clearColor : DirectX::Colors::CornflowerBlue;
 	m_clearColor.v = XMVectorPow(m_clearColor, XMVectorReplicate(1.0f / 1.25f));
-	m_clearColor.v = m_clearColor / (XMVectorReplicate(1.25f) - m_clearColor);
+	m_clearColor.v = 0.7f * m_clearColor / (XMVectorReplicate(1.25f) - m_clearColor);
 
 	// Init assets
 	vector<Resource::uptr> uploaders(0);
@@ -579,7 +579,7 @@ void VolumeRender::PopulateCommandList()
 	pCommandList->RSSetViewports(1, &viewport);
 	pCommandList->RSSetScissorRects(1, &scissorRect);
 
-	if (m_showMesh) m_objectRenderer->Render(pCommandList, m_frameIndex);
+	m_objectRenderer->Render(pCommandList, m_frameIndex, m_showMesh);
 
 	switch (g_renderMethod)
 	{

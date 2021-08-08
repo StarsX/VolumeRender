@@ -33,8 +33,8 @@ public:
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
-	void RenderShadow(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool draw = true);
-	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void RenderShadow(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
+	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
 	void ToneMap(const XUSG::CommandList* pCommandList);
 
 	XUSG::RenderTarget* GetRenderTarget() const;
@@ -50,6 +50,7 @@ protected:
 	{
 		DEPTH_PASS,
 		BASE_PASS,
+		ENVIRONMENT,
 		TONE_MAP,
 
 		NUM_PIPELINE
@@ -93,6 +94,7 @@ protected:
 
 	void render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void renderDepth(const XUSG::CommandList* pCommandList, uint8_t frameIndex, const XUSG::ConstantBuffer* pCb);
+	void environment(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::Device::sptr m_device;
 
@@ -116,6 +118,7 @@ protected:
 	XUSG::ConstantBuffer::uptr	m_cbShadow;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
+	XUSG::ConstantBuffer::uptr	m_cbPerFrameEnv;
 	XUSG::ShaderResource::sptr	m_lightProbes[NUM_LIGHT_PROBE];
 
 	uint32_t				m_numIndices;
