@@ -69,6 +69,7 @@ protected:
 		SRV_TABLE_DEPTH,
 		SRV_TABLE_SHADOW,
 		SRV_TABLE_IRRADIANCE,
+		SRV_TABLE_RADIANCE,
 
 		NUM_SRV_TABLE
 	};
@@ -90,6 +91,7 @@ protected:
 	bool createPipelines(XUSG::Format backFormat, XUSG::Format rtFormat, XUSG::Format dsFormat, XUSG::Format dsFormatH);
 	bool createDescriptorTables();
 
+	void render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void renderDepth(const XUSG::CommandList* pCommandList, uint8_t frameIndex, const XUSG::ConstantBuffer* pCb);
 
 	XUSG::Device::sptr m_device;
