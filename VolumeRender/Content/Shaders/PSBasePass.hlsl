@@ -92,9 +92,9 @@ min16float4 main(PSIn input) : SV_TARGET
 	const min16float NoL = saturate(dot(N, L));
 
 	const min16float3 V = min16float3(normalize(g_eyePos - input.WSPos));
+	float3 radiance = 0.0;
 #ifdef _HAS_LIGHT_PROBE_
 	const min16float3 R = reflect(-V, N);
-	float3 radiance = 0.0;
 	const bool hasRadiance = g_hasLightProbes & RADIANCE_BIT;
 	if (hasRadiance) radiance = g_txRadiance.SampleBias(g_smpLinear, R, 2.0);
 #endif

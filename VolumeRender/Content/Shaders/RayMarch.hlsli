@@ -139,6 +139,9 @@ min16float ShadowTest(float3 pos, Texture2D<float> txDepth)
 }
 #endif
 
+//--------------------------------------------------------------------------------------
+// Get irradiance
+//--------------------------------------------------------------------------------------
 #if defined(_HAS_LIGHT_PROBE_) && !defined(_LIGHT_PASS_)
 float3 GetIrradiance(float3 dir)
 {
