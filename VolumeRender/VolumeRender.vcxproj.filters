@@ -204,5 +204,8 @@
     <FxCompile Include="Content\Shaders\CSR32FToRGBA16F.hlsl">
       <Filter>Shaders\VolumeData</Filter>
     </FxCompile>
+    <FxCompile Include="Content\Shaders\PSEnvironment.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

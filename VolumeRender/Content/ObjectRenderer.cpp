@@ -33,6 +33,12 @@ struct CBPerFrame
 	XMFLOAT4 Ambient;
 };
 
+struct CBPerFrameEnv
+{
+	DirectX::XMFLOAT4	EyePos;
+	DirectX::XMFLOAT4X4	ScreenToWorld;
+};
+
 ObjectRenderer::ObjectRenderer(const Device::sptr& device) :
 	m_device(device),
 	m_lightProbes(),
@@ -87,7 +93,6 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 			8192, false, m_lightProbes[RADIANCE_MAP], uploaders.back().get(), &alphaMode), false);
 	}
 
-
 	// Create resources
 	const auto smFormat = Format::D16_UNORM;
 	m_depths[SHADOW_MAP] = DepthStencil::MakeUnique();
@@ -105,6 +110,13 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	m_cbPerFrame = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBPerFrame"), false);
+
+	if (m_lightProbes[RADIANCE_MAP])
+	{
+		m_cbPerFrameEnv = ConstantBuffer::MakeUnique();
+		N_RETURN(m_cbPerFrameEnv->Create(m_device.get(), sizeof(CBPerFrameEnv[FrameCount]), FrameCount,
+			nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBPerFrameEnv"), false);
+	}
 
 	// Create window size-dependent resource
 	//N_RETURN(SetViewport(width, height, dsFormat), false);
@@ -181,6 +193,14 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 		pCbData->LightColor = m_lightColor;
 		pCbData->Ambient = m_ambient;
 	}
+
+	if (m_lightProbes[RADIANCE_MAP])
+	{
+		const auto projToWorld = XMMatrixInverse(nullptr, viewProj);
+		const auto pCbData = reinterpret_cast<CBPerFrameEnv*>(m_cbPerFrameEnv->Map(frameIndex));
+		pCbData->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
+		XMStoreFloat4x4(&pCbData->ScreenToWorld, XMMatrixTranspose(projToWorld));
+	}
 }
 
 void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frameIndex, bool draw)
@@ -211,6 +231,7 @@ void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frame
 void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	render(pCommandList, frameIndex);
+	if (m_lightProbes[RADIANCE_MAP]) environment(pCommandList, frameIndex);
 }
 
 void ObjectRenderer::ToneMap(const CommandList* pCommandList)
@@ -322,6 +343,20 @@ bool ObjectRenderer::createPipelineLayouts()
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
+	// Environment mapping
+	if (m_lightProbes[RADIANCE_MAP])
+	{
+		const auto sampler = m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_WRAP);
+
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRootCBV(0, 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
+		pipelineLayout->SetStaticSamplers(&sampler, 1, 0, 0, Shader::PS);
+		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+			PipelineLayoutFlag::NONE, L"EnvironmentLayout"), false);
+	}
+
 	// Tone mapping
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
@@ -370,9 +405,27 @@ bool ObjectRenderer::createPipelines(Format backFormat, Format rtFormat, Format 
 		X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
 	}
 
+	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+
+	// Environment mapping
+	if (m_lightProbes[RADIANCE_MAP])
+	{
+		
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSEnvironment.cso"), false);
+
+		const auto state = Graphics::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->DSSetState(Graphics::DEPTH_READ_LESS_EQUAL, m_graphicsPipelineCache.get());
+		state->OMSetRTVFormats(&rtFormat, 1);
+		state->OMSetDSVFormat(dsFormat);
+		X_RETURN(m_pipelines[ENVIRONMENT], state->GetPipeline(m_graphicsPipelineCache.get(), L"Environment"), false);
+	}
+
 	// Tone mapping
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSToneMap.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
@@ -462,4 +515,18 @@ void ObjectRenderer::renderDepth(const CommandList* pCommandList, uint8_t frameI
 	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
 
 	pCommandList->DrawIndexed(m_numIndices, 1, 0, 0, 0);
+}
+
+void ObjectRenderer::environment(const CommandList* pCommandList, uint8_t frameIndex)
+{
+	// Set descriptor tables
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
+	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerFrameEnv.get(), m_cbPerFrameEnv->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvTables[SRV_TABLE_RADIANCE]);
+
+	// Set pipeline state
+	pCommandList->SetPipelineState(m_pipelines[ENVIRONMENT]);
+
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+	pCommandList->Draw(3, 1, 0, 0);
 }
