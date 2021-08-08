@@ -72,7 +72,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 #ifdef _HAS_LIGHT_PROBE_
 	min16float ao = 1.0;
 	float3 irradiance = 0.0;
-	if (g_hasIrradiance)
+	if (g_hasLightProbes)
 	{
 		float3 rayDir = -GetDensityGradient(uvw);
 		irradiance = GetIrradiance(mul(rayDir, (float3x3)g_world));
@@ -102,7 +102,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
 
 #ifdef _HAS_LIGHT_PROBE_
-	ambient = g_hasIrradiance ? min16float3(irradiance) * ao : ambient;
+	ambient = g_hasLightProbes ? min16float3(irradiance) * ao : ambient;
 #endif
 
 	g_rwLightMap[DTid] = lightColor * shadow + ambient;

@@ -12,6 +12,12 @@ using namespace std;
 using namespace DirectX;
 using namespace XUSG;
 
+enum LightProbeBit : uint8_t
+{
+	IRRADIANCE_BIT = (1 << 0),
+	RADIANCE_BIT = (1 << 1)
+};
+
 struct CBPerObject
 {
 	XMFLOAT4X4 WorldViewProj;
@@ -204,22 +210,7 @@ void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frame
 
 void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
 {
-	// Set pipeline state
-	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[BASE_PASS]);
-	pCommandList->SetPipelineState(m_pipelines[BASE_PASS]);
-
-	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
-
-	// Set descriptor tables
-	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject.get(), m_cbPerObject->GetCBVOffset(frameIndex));
-	pCommandList->SetGraphicsRootConstantBufferView(1, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
-	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_SHADOW]);
-	pCommandList->SetGraphics32BitConstant(3, m_lightProbes[IRRADIANCE_MAP] ? 1 : 0);
-
-	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
-	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
-
-	pCommandList->DrawIndexed(m_numIndices, 1, 0, 0, 0);
+	render(pCommandList, frameIndex);
 }
 
 void ObjectRenderer::ToneMap(const CommandList* pCommandList)
@@ -321,7 +312,7 @@ bool ObjectRenderer::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRootCBV(0, 0, 0, Shader::Stage::VS);
 		pipelineLayout->SetRootCBV(1, 0, 0, Shader::Stage::PS);
-		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 3, 0);
 		pipelineLayout->SetConstants(3, 1, 1, 0, Shader::Stage::PS);
 		pipelineLayout->SetStaticSamplers(samplers, static_cast<uint32_t>(size(samplers)), 0, 0, Shader::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::VS);
@@ -425,7 +416,35 @@ bool ObjectRenderer::createDescriptorTables()
 		X_RETURN(m_srvTables[SRV_TABLE_IRRADIANCE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
+	if (m_lightProbes[RADIANCE_MAP])
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_lightProbes[RADIANCE_MAP]->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_RADIANCE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
 	return true;
+}
+
+void ObjectRenderer::render(const CommandList* pCommandList, uint8_t frameIndex)
+{
+	// Set pipeline state
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[BASE_PASS]);
+	pCommandList->SetPipelineState(m_pipelines[BASE_PASS]);
+
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+
+	// Set descriptor tables
+	uint8_t hasLightProbes = m_lightProbes[IRRADIANCE_MAP] ? IRRADIANCE_BIT : 0;
+	hasLightProbes |= m_lightProbes[RADIANCE_MAP] ? RADIANCE_BIT : 0;
+	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject.get(), m_cbPerObject->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsRootConstantBufferView(1, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_SHADOW]);
+	pCommandList->SetGraphics32BitConstant(3, hasLightProbes);
+	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
+	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
+
+	pCommandList->DrawIndexed(m_numIndices, 1, 0, 0, 0);
 }
 
 void ObjectRenderer::renderDepth(const CommandList* pCommandList, uint8_t frameIndex, const ConstantBuffer* pCb)
