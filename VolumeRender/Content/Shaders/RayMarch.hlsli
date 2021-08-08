@@ -15,7 +15,7 @@ cbuffer cbSampleRes
 {
 	uint g_numSamples;
 #ifdef _HAS_LIGHT_PROBE_
-	uint g_hasLightProbe;
+	uint g_hasIrradiance;
 #endif
 	uint g_numLightSamples; // Only for non-light-separate paths, which need both view and light ray samples
 };
@@ -232,13 +232,13 @@ float3 GetLight(float3 pos, float3 step)
 
 #ifdef _HAS_LIGHT_PROBE_
 	min16float ao = 1.0;
-	float3 irradiance;
-	if (g_hasLightProbe)
+	float3 irradiance = 0.0;
+	if (g_hasIrradiance)
 	{
 		const float3 uvw = LocalToTex3DSpace(pos);
-		const float3 rayDir = -normalize(GetDensityGradient(uvw));
-		const float3 step = rayDir * g_lightStepScale;
-		irradiance = GetIrradiance(mul(rayDir, (float3x3)g_world));
+		const float3 rayVec = -GetDensityGradient(uvw);
+		irradiance = GetIrradiance(mul(rayVec, (float3x3)g_world));
+		const float3 step = normalize(rayVec) * g_lightStepScale;
 
 		float3 rayPos = pos;
 		for (uint i = 0; i < g_numSamples; ++i)
@@ -262,7 +262,7 @@ float3 GetLight(float3 pos, float3 step)
 	min16float3 ambient = min16float3(g_ambient.xyz * g_ambient.w);
 
 #ifdef _HAS_LIGHT_PROBE_
-	ambient = g_hasLightProbe ? min16float3(irradiance) * ao : ambient;
+	ambient = g_hasIrradiance ? min16float3(irradiance) * ao : ambient;
 #endif
 
 	return lightColor * shadow + ambient;

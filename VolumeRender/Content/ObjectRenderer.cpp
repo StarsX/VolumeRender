@@ -214,6 +214,7 @@ void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject.get(), m_cbPerObject->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsRootConstantBufferView(1, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_SHADOW]);
+	pCommandList->SetGraphics32BitConstant(3, m_lightProbes[IRRADIANCE_MAP] ? 1 : 0);
 
 	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
 	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
@@ -311,13 +312,18 @@ bool ObjectRenderer::createPipelineLayouts()
 
 	// Base pass
 	{
-		const auto samplerShadow = m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_LESS_EQUAL);
+		const Sampler samplers[] =
+		{
+			m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_LESS_EQUAL),
+			m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_WRAP)
+		};
 
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRootCBV(0, 0, 0, Shader::Stage::VS);
 		pipelineLayout->SetRootCBV(1, 0, 0, Shader::Stage::PS);
-		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
-		pipelineLayout->SetStaticSamplers(&samplerShadow, 1, 0, 0, Shader::PS);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 0);
+		pipelineLayout->SetConstants(3, 1, 1, 0, Shader::Stage::PS);
+		pipelineLayout->SetStaticSamplers(samplers, static_cast<uint32_t>(size(samplers)), 0, 0, Shader::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::VS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
