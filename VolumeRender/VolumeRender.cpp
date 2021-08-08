@@ -152,7 +152,7 @@ void VolumeRender::LoadAssets()
 	m_clearColor = { 0.2f, 0.2f, 0.2f, 0.2f };
 	m_clearColor = m_volumeFile.empty() ? m_clearColor : DirectX::Colors::CornflowerBlue;
 	m_clearColor.v = XMVectorPow(m_clearColor, XMVectorReplicate(1.0f / 1.25f));
-	m_clearColor.v = m_clearColor / (XMVectorReplicate(1.25f) - m_clearColor);
+	m_clearColor.v = 0.7f * m_clearColor / (XMVectorReplicate(1.25f) - m_clearColor);
 
 	// Init assets
 	vector<Resource::uptr> uploaders(0);

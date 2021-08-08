@@ -17,7 +17,7 @@ min16float4 main(PSIn input) : SV_TARGET
 {
 	const float4 src = g_txSource[input.Pos.xy];
 	min16float3 result = min16float3(src.xyz);
-	result *= 1.25 / (result + 1.0);
+	result *= 1.25 / (result + 0.7);
 	result = pow(abs(result), 1.25);
 
 	return min16float4(result, 1.0);
