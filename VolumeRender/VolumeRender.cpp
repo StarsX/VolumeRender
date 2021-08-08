@@ -48,6 +48,8 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_numParticles(1 << 14),
 	m_particleSize(2.5f),
 	m_volumeFile(L""),
+	m_radianceFile(L""),
+	m_irradianceFile(L""),
 	m_meshFileName("Media/bunny.obj"),
 	m_volPosScale(0.0f, 0.0f, 0.0f, 10.0f),
 	m_meshPosScale(0.0f, -10.0f, 0.0f, 1.5f)
@@ -154,11 +156,12 @@ void VolumeRender::LoadAssets()
 
 	// Init assets
 	vector<Resource::uptr> uploaders(0);
-	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 57, 0);
+	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 60, 0);
 	m_objectRenderer = make_unique<ObjectRenderer>(m_device);
 	if (!m_objectRenderer) ThrowIfFailed(E_FAIL);
 	if (!m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
-		uploaders, m_meshFileName.c_str(), g_backFormat, g_rtFormat, g_dsFormat, m_meshPosScale))
+		uploaders, m_meshFileName.c_str(), m_irradianceFile.c_str(), m_radianceFile.c_str(),
+		g_backFormat, g_rtFormat, g_dsFormat, m_meshPosScale))
 		ThrowIfFailed(E_FAIL);
 
 	m_rayCaster = make_unique<RayCaster>(m_device);
@@ -171,6 +174,7 @@ void VolumeRender::LoadAssets()
 	m_rayCaster->SetVolumeWorld(volumeSize, volumePos);
 	m_rayCaster->SetLightMapWorld(volumeSize, volumePos);
 	m_rayCaster->SetMaxSamples(m_maxRaySamples, m_maxLightSamples);
+	m_rayCaster->SetIrradiance(m_objectRenderer->GetIrradiance());
 
 	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
 	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
@@ -516,6 +520,16 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 			_wcsnicmp(argv[i], L"/maxLightSamples", wcslen(argv[i])) == 0)
 		{
 			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_maxLightSamples);
+		}
+		else if (_wcsnicmp(argv[i], L"-irradiance", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/irradiance", wcslen(argv[i])) == 0)
+		{
+			m_irradianceFile = i + 1 < argc ? argv[++i] : m_irradianceFile;
+		}
+		else if (_wcsnicmp(argv[i], L"-radiance", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/radiance", wcslen(argv[i])) == 0)
+		{
+			m_radianceFile = i + 1 < argc ? argv[++i] : m_radianceFile;
 		}
 	}
 }

@@ -4,6 +4,9 @@
 
 #include "Optional/XUSGObjLoader.h"
 #include "ObjectRenderer.h"
+#define _INDEPENDENT_DDS_LOADER_
+#include "Advanced/XUSGDDSLoader.h"
+#undef _INDEPENDENT_DDS_LOADER_
 
 using namespace std;
 using namespace DirectX;
@@ -26,6 +29,7 @@ struct CBPerFrame
 
 ObjectRenderer::ObjectRenderer(const Device::sptr& device) :
 	m_device(device),
+	m_lightProbes(),
 	m_shadowMapSize(1024),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
@@ -43,7 +47,8 @@ ObjectRenderer::~ObjectRenderer()
 
 bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
-	const char* fileName, Format backFormat, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
+	const char* fileName, const wchar_t* irradianceMapFileName, const wchar_t* radianceMapFileName,
+	Format backFormat, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
 {
 	m_descriptorTableCache = descriptorTableCache;
 	m_posScale = posScale;
@@ -54,6 +59,28 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
 	N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
 	m_sceneSize = objLoader.GetRadius() * posScale.w * 2.0f;
+
+	// Load input images
+	if (irradianceMapFileName && *irradianceMapFileName)
+	{
+		DDS::Loader textureLoader;
+		DDS::AlphaMode alphaMode;
+
+		uploaders.emplace_back(Resource::MakeUnique());
+		N_RETURN(textureLoader.CreateTextureFromFile(m_device.get(), pCommandList, irradianceMapFileName,
+			8192, false, m_lightProbes[IRRADIANCE_MAP], uploaders.back().get(), &alphaMode), false);
+	}
+
+	if (radianceMapFileName && *radianceMapFileName)
+	{
+		DDS::Loader textureLoader;
+		DDS::AlphaMode alphaMode;
+
+		uploaders.emplace_back(Resource::MakeUnique());
+		N_RETURN(textureLoader.CreateTextureFromFile(m_device.get(), pCommandList, radianceMapFileName,
+			8192, false, m_lightProbes[RADIANCE_MAP], uploaders.back().get(), &alphaMode), false);
+	}
+
 
 	// Create resources
 	const auto smFormat = Format::D16_UNORM;
@@ -218,6 +245,11 @@ DepthStencil* ObjectRenderer::GetDepthMap(DepthIndex index) const
 	return m_depths[index].get();
 }
 
+ShaderResource* ObjectRenderer::GetIrradiance() const
+{
+	return m_lightProbes[IRRADIANCE_MAP].get();
+}
+
 const DepthStencil::uptr* ObjectRenderer::GetDepthMaps() const
 {
 	return m_depths;
@@ -378,6 +410,13 @@ bool ObjectRenderer::createDescriptorTables()
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_depths[SHADOW_MAP]->GetSRV());
 		X_RETURN(m_srvTables[SRV_TABLE_SHADOW], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
+	if (m_lightProbes[IRRADIANCE_MAP])
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_lightProbes[IRRADIANCE_MAP]->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_IRRADIANCE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	return true;

@@ -4,6 +4,7 @@
 
 #define _HAS_DEPTH_MAP_
 #define _HAS_SHADOW_MAP_
+#define _HAS_LIGHT_PROBE_
 
 #define	INF				asfloat(0x7f800000)
 #define	FLT_MAX			3.402823466e+38
@@ -18,6 +19,7 @@ cbuffer cbPerObject
 	matrix g_worldViewProj;
 	matrix g_shadowWVP;
 	float4x3 g_worldI;
+	float4x3 g_world;
 	float4x3 g_localToLight;
 };
 

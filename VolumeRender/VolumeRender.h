@@ -95,6 +95,8 @@ private:
 	uint32_t m_numParticles;
 	float m_particleSize;
 	std::wstring m_volumeFile;
+	std::wstring m_radianceFile;
+	std::wstring m_irradianceFile;
 	std::string m_meshFileName;
 	XMFLOAT4 m_volPosScale;
 	XMFLOAT4 m_meshPosScale;
