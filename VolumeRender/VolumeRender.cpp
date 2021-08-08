@@ -40,7 +40,7 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_frameIndex(0),
 	m_maxRaySamples(256),
 	m_maxLightSamples(64),
-	m_showMesh(true),
+	m_showMesh(false),
 	m_showFPS(true),
 	m_isPaused(false),
 	m_tracking(false),
@@ -579,7 +579,7 @@ void VolumeRender::PopulateCommandList()
 	pCommandList->RSSetViewports(1, &viewport);
 	pCommandList->RSSetScissorRects(1, &scissorRect);
 
-	if (m_showMesh) m_objectRenderer->Render(pCommandList, m_frameIndex);
+	m_objectRenderer->Render(pCommandList, m_frameIndex, m_showMesh);
 
 	switch (g_renderMethod)
 	{

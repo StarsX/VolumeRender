@@ -203,7 +203,7 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 	}
 }
 
-void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frameIndex, bool draw)
+void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frameIndex, bool drawScene)
 {
 	// Set barrier
 	ResourceBarrier barrier;
@@ -216,7 +216,7 @@ void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frame
 	pCommandList->OMSetRenderTargets(0, nullptr, &dsv);
 	pCommandList->ClearDepthStencilView(dsv, ClearFlag::DEPTH, 1.0f);
 
-	if (draw)
+	if (drawScene)
 	{
 		// Set shadow viewport
 		Viewport viewport(0.0f, 0.0f, static_cast<float>(m_shadowMapSize), static_cast<float>(m_shadowMapSize));
@@ -228,9 +228,9 @@ void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frame
 	}
 }
 
-void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex)
+void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex, bool drawScene)
 {
-	render(pCommandList, frameIndex);
+	if (drawScene) render(pCommandList, frameIndex);
 	if (m_lightProbes[RADIANCE_MAP]) environment(pCommandList, frameIndex);
 }
 
