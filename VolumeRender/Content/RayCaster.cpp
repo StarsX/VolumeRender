@@ -335,7 +335,7 @@ void RayCaster::SetMaxSamples(uint32_t maxRaySamples, uint32_t maxLightSamples)
 	m_maxLightSamples = maxLightSamples;
 }
 
-void RayCaster::SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos)
+void RayCaster::SetVolumeWorld(float size, const XMFLOAT3& pos)
 {
 	size *= 0.5f;
 	auto world = XMMatrixScaling(size, size, size);
@@ -343,7 +343,7 @@ void RayCaster::SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos)
 	XMStoreFloat3x4(&m_volumeWorld, world);
 }
 
-void RayCaster::SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos)
+void RayCaster::SetLightMapWorld(float size, const XMFLOAT3& pos)
 {
 	size *= 0.5f;
 	auto world = XMMatrixScaling(size, size, size);

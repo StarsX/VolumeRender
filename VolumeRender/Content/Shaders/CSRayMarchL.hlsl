@@ -33,14 +33,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
 #endif
 
 	const float3 uvw = LocalToTex3DSpace(rayOrigin.xyz);
-	/*const min16float density = GetSample(uvw).w;
-	if (density < ZERO_THRESHOLD)
-	{
-		g_rwLightMap[DTid] = 0.0;
-		return;
-	}*/
+	const min16float density = GetSample(uvw).w;
 
-	if (shadow > 0.0)
+	if (shadow >= ZERO_THRESHOLD && density >= ZERO_THRESHOLD)
 	{
 #ifdef _POINT_LIGHT_
 		const float3 localSpaceLightPt = mul(float4(g_lightPt, 1.0), g_worldI);
