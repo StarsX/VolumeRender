@@ -1,1 +1,1 @@
-start VolumeRender.exe -irradiance Media/uffizi_cross.diffuse.dds -radiance Media/uffizi_cross.dds
+start VolumeRender.exe -irradiance Media/Winter_Irradiance.dds -radiance Media/Winter_Radiance.dds

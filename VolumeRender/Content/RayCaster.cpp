@@ -16,6 +16,7 @@ struct CBPerFrame
 {
 	XMFLOAT4 EyePos;
 	XMFLOAT3X4 LightMapWorld;
+	XMFLOAT4X4 ShadowViewProj;
 	XMFLOAT4 LightPos;
 	XMFLOAT4 LightColor;
 	XMFLOAT4 Ambient;
@@ -25,7 +26,6 @@ struct CBPerObject
 {
 	XMFLOAT4X4 WorldViewProjI;
 	XMFLOAT4X4 WorldViewProj;
-	XMFLOAT4X4 ShadowWVP;
 	XMFLOAT3X4 WorldI;
 	XMFLOAT3X4 World;
 	XMFLOAT3X4 LocalToLight;
@@ -205,10 +205,11 @@ RayCaster::~RayCaster()
 }
 
 bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
-	Format rtFormat, uint32_t gridSize, const DepthStencil::uptr* depths)
+	Format rtFormat, uint32_t gridSize, uint32_t lightGridSize, const DepthStencil::uptr* depths)
 {
 	m_descriptorTableCache = descriptorTableCache;
 	m_gridSize = gridSize;
+	m_lightGridSize = lightGridSize;
 	m_pDepths = depths;
 
 	// Create resources
@@ -226,7 +227,6 @@ bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
 	N_RETURN(m_cubeDepth->Create(m_device.get(), gridSize, gridSize, Format::R32_FLOAT, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, MemoryType::DEFAULT, true, L"CubeDepth"), false);
 
-	m_lightGridSize = gridSize >> 1;
 	m_lightMap = Texture3D::MakeUnique();
 	N_RETURN(m_lightMap->Create(m_device.get(), m_lightGridSize, m_lightGridSize, m_lightGridSize,
 		Format::R11G11B10_FLOAT,ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS,
@@ -335,10 +335,11 @@ void RayCaster::SetMaxSamples(uint32_t maxRaySamples, uint32_t maxLightSamples)
 	m_maxLightSamples = maxLightSamples;
 }
 
-void RayCaster::SetVolumeWorld(float size, const XMFLOAT3& pos)
+void RayCaster::SetVolumeWorld(float size, const XMFLOAT3& pos, const XMFLOAT3* pPitchYawRoll)
 {
 	size *= 0.5f;
 	auto world = XMMatrixScaling(size, size, size);
+	if (pPitchYawRoll) world *= XMMatrixRotationRollPitchYaw(pPitchYawRoll->x, pPitchYawRoll->y, pPitchYawRoll->z);
 	world = world * XMMatrixTranslation(pos.x, pos.y, pos.z);
 	XMStoreFloat3x4(&m_volumeWorld, world);
 }
@@ -362,13 +363,14 @@ void RayCaster::SetAmbient(const XMFLOAT3& color, float intensity)
 	m_ambient = XMFLOAT4(color.x, color.y, color.z, intensity);
 }
 
-void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX shadowVP, const XMFLOAT3& eyePt)
+void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT4X4& shadowVP, const XMFLOAT3& eyePt)
 {
 	// Per-frame
 	{
 		const auto pCbData = reinterpret_cast<CBPerFrame*>(m_cbPerFrame->Map(frameIndex));
 		pCbData->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
 		pCbData->LightMapWorld = m_lightMapWorld;
+		pCbData->ShadowViewProj = shadowVP;
 		pCbData->LightPos = XMFLOAT4(m_lightPt.x, m_lightPt.y, m_lightPt.z, 1.0f);
 		pCbData->LightColor = m_lightColor;
 		pCbData->Ambient = m_ambient;
@@ -385,7 +387,6 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, CXMMATRIX sh
 		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
 		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(worldViewProj));
 		XMStoreFloat4x4(&pCbData->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
-		XMStoreFloat4x4(&pCbData->ShadowWVP, XMMatrixTranspose(world * shadowVP));
 		XMStoreFloat3x4(&pCbData->WorldI, XMMatrixInverse(nullptr, world));
 		XMStoreFloat3x4(&pCbData->World, world);
 		XMStoreFloat3x4(&pCbData->LocalToLight, world * lightWorldI);

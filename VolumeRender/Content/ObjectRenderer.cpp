@@ -63,7 +63,7 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	Format backFormat, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
 {
 	m_descriptorTableCache = descriptorTableCache;
-	m_posScale = posScale;
+	SetWorld(posScale.w, XMFLOAT3(posScale.x, posScale.y, posScale.z));
 
 	// Load inputs
 	ObjLoader objLoader;
@@ -146,6 +146,14 @@ bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format rtForma
 	return createDescriptorTables();
 }
 
+void ObjectRenderer::SetWorld(float scale, const XMFLOAT3& pos, const XMFLOAT3* pPitchYawRoll)
+{
+	auto world = XMMatrixScaling(scale, scale, scale);
+	if (pPitchYawRoll) world *= XMMatrixRotationRollPitchYaw(pPitchYawRoll->x, pPitchYawRoll->y, pPitchYawRoll->z);
+	world = world * XMMatrixTranslation(pos.x, pos.y, pos.z);
+	XMStoreFloat3x4(&m_world, world);
+}
+
 void ObjectRenderer::SetLight(const XMFLOAT3& pos, const XMFLOAT3& color, float intensity)
 {
 	m_lightPt = pos;
@@ -160,8 +168,7 @@ void ObjectRenderer::SetAmbient(const XMFLOAT3& color, float intensity)
 void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
 {
 	XMFLOAT4X4 shadowWVP;
-	const auto world = XMMatrixScaling(m_posScale.w, m_posScale.w, m_posScale.w) *
-		XMMatrixTranslation(m_posScale.x, m_posScale.y, m_posScale.z);
+	const auto world = XMLoadFloat3x4(&m_world);
 
 	{
 		const auto zNear = 1.0f;
@@ -172,7 +179,7 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 		const auto lightView = XMMatrixLookAtLH(lightPos, XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
 		const auto lightProj = XMMatrixOrthographicLH(size, size, zNear, zFar);
 		const auto lightViewProj = lightView * lightProj;
-		XMStoreFloat4x4(&m_shadowVP, lightViewProj);
+		XMStoreFloat4x4(&m_shadowVP, XMMatrixTranspose(lightViewProj));
 		XMStoreFloat4x4(&shadowWVP, XMMatrixTranspose(world * lightViewProj));
 
 		const auto pCbData = reinterpret_cast<XMFLOAT4X4*>(m_cbShadow->Map(frameIndex));
@@ -268,9 +275,9 @@ const DepthStencil::uptr* ObjectRenderer::GetDepthMaps() const
 	return m_depths;
 }
 
-FXMMATRIX ObjectRenderer::GetShadowVP() const
+const XMFLOAT4X4& ObjectRenderer::GetShadowVP() const
 {
-	return XMLoadFloat4x4(&m_shadowVP);
+	return m_shadowVP;
 }
 
 bool ObjectRenderer::createVB(CommandList* pCommandList, uint32_t numVert,
