@@ -15,9 +15,8 @@
 //--------------------------------------------------------------------------------------
 cbuffer cbPerObject
 {
-	matrix g_worldViewProjI;
-	matrix g_worldViewProj;
-	matrix g_shadowWVP;
+	float4x4 g_worldViewProjI;
+	float4x4 g_worldViewProj;
 	float4x3 g_worldI;
 	float4x3 g_world;
 	float4x3 g_localToLight;
@@ -27,6 +26,7 @@ cbuffer cbPerFrame
 {
 	float3 g_eyePt;
 	float4x3 g_lightMapWorld;
+	float4x4 g_shadowViewProj;
 	float3 g_lightPt;
 	float4 g_lightColor;
 	float4 g_ambient;

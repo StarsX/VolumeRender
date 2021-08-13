@@ -129,7 +129,7 @@ float GetTMax(float3 pos, float3 rayOrigin, float3 rayDir)
 #ifdef _HAS_SHADOW_MAP_
 min16float ShadowTest(float3 pos, Texture2D<float> txDepth)
 {
-	const float3 lsPos = mul(float4(pos, 1.0), g_shadowWVP).xyz;
+	const float3 lsPos = mul(float4(pos, 1.0), g_shadowViewProj).xyz;
 	float2 shadowUV = lsPos.xy * 0.5 + 0.5;
 	shadowUV.y = 1.0 - shadowUV.y;
 
@@ -208,13 +208,13 @@ float3 GetLight(float3 pos, float3 step)
 float3 GetLight(float3 pos, float3 step)
 {
 	// Transmittance along light ray
-#ifdef _HAS_SHADOW_MAP_
-	min16float shadow = ShadowTest(pos, g_txShadow);
+#if defined(_HAS_SHADOW_MAP_) && !defined(_LIGHT_PASS_)
+	min16float shadow = ShadowTest(mul(float4(pos, 1.0), g_world), g_txShadow);
 #else
 	min16float shadow = 1.0;
 #endif
 
-	if (shadow > 0.0)
+	if (shadow > ZERO_THRESHOLD)
 	{
 		float3 rayPos = pos;
 		for (uint i = 0; i < g_numLightSamples; ++i)

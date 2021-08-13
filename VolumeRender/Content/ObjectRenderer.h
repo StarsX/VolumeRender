@@ -30,6 +30,7 @@ public:
 	bool SetViewport(uint32_t width, uint32_t height, XUSG::Format rtFormat,
 		XUSG::Format dsFormat, const float* clearColor);
 
+	void SetWorld(float scale, const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3* pPitchYawRoll = nullptr);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
@@ -41,7 +42,7 @@ public:
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;
 	XUSG::ShaderResource* GetIrradiance() const;
 	const XUSG::DepthStencil::uptr* GetDepthMaps() const;
-	DirectX::FXMMATRIX GetShadowVP() const;
+	const DirectX::XMFLOAT4X4& GetShadowVP() const;
 
 	static const uint8_t FrameCount = 3;
 
@@ -124,11 +125,11 @@ protected:
 	uint32_t				m_numIndices;
 	uint32_t				m_shadowMapSize;
 	DirectX::XMUINT2		m_viewport;
-	DirectX::XMFLOAT4		m_posScale;
 
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;
 	DirectX::XMFLOAT4		m_ambient;
+	DirectX::XMFLOAT3X4		m_world;
 	DirectX::XMFLOAT4X4		m_shadowVP;
 
 	float					m_sceneSize;

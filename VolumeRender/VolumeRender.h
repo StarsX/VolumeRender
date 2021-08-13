@@ -79,6 +79,7 @@ private:
 	uint64_t	m_fenceValues[FrameCount];
 
 	// Application state
+	bool		m_animate;
 	bool		m_showMesh;
 	bool		m_showFPS;
 	bool		m_isPaused;
@@ -90,6 +91,7 @@ private:
 
 	// User external settings
 	uint32_t m_gridSize;
+	uint32_t m_lightGridSize;
 	uint32_t m_maxRaySamples;
 	uint32_t m_maxLightSamples;
 	uint32_t m_numParticles;

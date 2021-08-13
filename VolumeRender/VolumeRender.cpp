@@ -38,11 +38,13 @@ const auto g_dsFormat = Format::D32_FLOAT;
 VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
 	m_frameIndex(0),
+	m_animate(false),
 	m_showMesh(false),
 	m_showFPS(true),
 	m_isPaused(false),
 	m_tracking(false),
 	m_gridSize(128),
+	m_lightGridSize(128),
 	m_maxRaySamples(256),
 	m_maxLightSamples(64),
 	m_numParticles(1 << 14),
@@ -166,13 +168,13 @@ void VolumeRender::LoadAssets()
 
 	m_rayCaster = make_unique<RayCaster>(m_device);
 	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
-	if (!m_rayCaster->Init(m_descriptorTableCache, g_rtFormat,
-		m_gridSize, m_objectRenderer->GetDepthMaps()))
+	if (!m_rayCaster->Init(m_descriptorTableCache, g_rtFormat, m_gridSize,
+		m_lightGridSize, m_objectRenderer->GetDepthMaps()))
 		ThrowIfFailed(E_FAIL);
 	const auto volumeSize = m_volPosScale.w * 2.0f;
 	const auto volumePos = XMFLOAT3(m_volPosScale.x, m_volPosScale.y, m_volPosScale.z);
 	m_rayCaster->SetVolumeWorld(volumeSize, volumePos);
-	m_rayCaster->SetLightMapWorld(volumeSize, volumePos);
+	m_rayCaster->SetLightMapWorld(volumeSize * 2.0f, volumePos);
 	m_rayCaster->SetMaxSamples(m_maxRaySamples, m_maxLightSamples);
 	m_rayCaster->SetIrradiance(m_objectRenderer->GetIrradiance());
 
@@ -273,6 +275,16 @@ void VolumeRender::OnUpdate()
 	timeStep = m_isPaused ? 0.0f : timeStep;
 	time = totalTime - pauseTime;
 
+	// Set animations
+	if (m_animate)
+	{
+		const auto meshPitchYawRoll = XMFLOAT3(0.0f, static_cast<float>(time), 0.0f);
+		const auto volPitchYawRoll = XMFLOAT3(0.0f, -static_cast<float>(time), 0.0f);
+		m_objectRenderer->SetWorld(m_meshPosScale.w, XMFLOAT3(m_meshPosScale.x, m_meshPosScale.y, m_meshPosScale.z), &meshPitchYawRoll);
+		m_rayCaster->SetVolumeWorld(m_volPosScale.w * 2.0f, XMFLOAT3(m_volPosScale.x, m_volPosScale.y, m_volPosScale.z), &volPitchYawRoll);
+	}
+
+	// Set lighting
 	const XMFLOAT3 lightPt(75.0f, 75.0f, -75.0f);
 	const XMFLOAT3 lightColor(1.0f, 0.7f, 0.3f);
 	const XMFLOAT3 ambientColor(0.4f, 0.6f, 1.0f);
@@ -397,6 +409,9 @@ void VolumeRender::OnKeyUp(uint8_t key)
 	case VK_RIGHT:
 		g_renderMethod = static_cast<RenderMethod>((g_renderMethod + 1) % NUM_RENDER_METHOD);
 		break;
+	case 'A':
+		m_animate = !m_animate;
+		break;
 	case 'M':
 		m_showMesh = !m_showMesh;
 		break;
@@ -489,6 +504,11 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 			_wcsnicmp(argv[i], L"/gridSize", wcslen(argv[i])) == 0)
 		{
 			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_gridSize);
+		}
+		else if (_wcsnicmp(argv[i], L"-lightGridSize", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/lightGridSize", wcslen(argv[i])) == 0)
+		{
+			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_lightGridSize);
 		}
 		else if (_wcsnicmp(argv[i], L"-particles", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/particles", wcslen(argv[i])) == 0)
@@ -678,6 +698,7 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 		if (m_showFPS) windowText << setprecision(2) << fixed << fps;
 		else windowText << L"[F1]";
 
+		windowText << L"    [A] Play/stop rotation animation";
 		windowText << L"    [M] Show/hide mesh";
 		windowText << L"    [\x2190][\x2192] ";
 		switch (g_renderMethod)

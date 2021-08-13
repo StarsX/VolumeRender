@@ -22,18 +22,18 @@ public:
 	virtual ~RayCaster();
 
 	bool Init(const XUSG::DescriptorTableCache::sptr& descriptorTableCache, XUSG::Format rtFormat,
-		uint32_t gridSize, const XUSG::DepthStencil::uptr* depths);
+		uint32_t gridSize, uint32_t lightGridSize, const XUSG::DepthStencil::uptr* depths);
 	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
 	bool SetDepthMaps(const XUSG::DepthStencil::uptr* depths);
 
 	void InitVolumeData(const XUSG::CommandList* pCommandList);
 	void SetIrradiance(const XUSG::ShaderResource* pIrradiance);
 	void SetMaxSamples(uint32_t maxRaySamples, uint32_t maxLightSamples);
-	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos);
+	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3* pPitchYawRoll = nullptr);
 	void SetLightMapWorld(float size, const DirectX::XMFLOAT3& pos);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
-	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, DirectX::CXMMATRIX shadowVP, const DirectX::XMFLOAT3& eyePt);
+	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT4X4& shadowVP, const DirectX::XMFLOAT3& eyePt);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, uint8_t flags = OPTIMIZED);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
