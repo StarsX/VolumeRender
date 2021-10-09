@@ -97,25 +97,25 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	const auto smFormat = Format::D16_UNORM;
 	m_depths[SHADOW_MAP] = DepthStencil::MakeUnique();
 	N_RETURN(m_depths[SHADOW_MAP]->Create(m_device.get(), m_shadowMapSize, m_shadowMapSize,
-		smFormat, ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Shadow"), false);
+		smFormat, ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, MemoryFlag::NONE, L"Shadow"), false);
 
 	m_cbShadow = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbShadow->Create(m_device.get(), sizeof(XMFLOAT4X4[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBshadow"), false);
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBshadow"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBPerObject"), false);
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBPerObject"), false);
 
 	m_cbPerFrame = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBPerFrame"), false);
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBPerFrame"), false);
 
 	if (m_lightProbes[RADIANCE_MAP])
 	{
 		m_cbPerFrameEnv = ConstantBuffer::MakeUnique();
 		N_RETURN(m_cbPerFrameEnv->Create(m_device.get(), sizeof(CBPerFrameEnv[FrameCount]), FrameCount,
-			nullptr, MemoryType::UPLOAD, L"ObjectRenderer.CBPerFrameEnv"), false);
+			nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBPerFrameEnv"), false);
 	}
 
 	// Create window size-dependent resource
@@ -137,11 +137,12 @@ bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format rtForma
 	// Recreate window size-dependent resource
 	m_color = RenderTarget::MakeUnique();
 	N_RETURN(m_color->Create(m_device.get(), width, height, rtFormat, 1,
-		ResourceFlag::NONE, 1, 1, clearColor, false, L"RenderTarget"), false);
+		ResourceFlag::NONE, 1, 1, clearColor, false, MemoryFlag::NONE,
+		L"RenderTarget"), false);
 
 	m_depths[DEPTH_MAP] = DepthStencil::MakeUnique();
 	N_RETURN(m_depths[DEPTH_MAP]->Create(m_device.get(), width, height, dsFormat,
-		ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, L"Depth"), false);
+		ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, MemoryFlag::NONE, L"Depth"), false);
 
 	return createDescriptorTables();
 }
@@ -285,7 +286,7 @@ bool ObjectRenderer::createVB(CommandList* pCommandList, uint32_t numVert,
 {
 	m_vertexBuffer = VertexBuffer::MakeUnique();
 	N_RETURN(m_vertexBuffer->Create(m_device.get(), numVert, stride, ResourceFlag::NONE,
-		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshVB"), false);
+		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, MemoryFlag::NONE, L"MeshVB"), false);
 	uploaders.emplace_back(Resource::MakeUnique());
 
 	return m_vertexBuffer->Upload(pCommandList, uploaders.back().get(), pData, stride * numVert);
@@ -299,7 +300,7 @@ bool ObjectRenderer::createIB(CommandList* pCommandList, uint32_t numIndices,
 	const uint32_t byteWidth = sizeof(uint32_t) * numIndices;
 	m_indexBuffer = IndexBuffer::MakeUnique();
 	N_RETURN(m_indexBuffer->Create(m_device.get(), byteWidth, Format::R32_UINT, ResourceFlag::NONE,
-		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshIB"), false);
+		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, MemoryFlag::NONE, L"MeshIB"), false);
 	uploaders.emplace_back(Resource::MakeUnique());
 
 	return m_indexBuffer->Upload(pCommandList, uploaders.back().get(), pData, byteWidth);

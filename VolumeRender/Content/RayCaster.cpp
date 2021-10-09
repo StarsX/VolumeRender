@@ -216,34 +216,34 @@ bool RayCaster::Init(const DescriptorTableCache::sptr& descriptorTableCache,
 	m_volume = Texture3D::MakeUnique();
 	N_RETURN(m_volume->Create(m_device.get(), gridSize, gridSize, gridSize, Format::R16G16B16A16_FLOAT,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS, 1,
-		MemoryType::DEFAULT, L"Volume"), false);
+		MemoryFlag::NONE, L"Volume"), false);
 
 	const uint8_t numMips = 5;
 	m_cubeMap = Texture2D::MakeUnique();
 	N_RETURN(m_cubeMap->Create(m_device.get(), gridSize, gridSize, Format::R16G16B16A16_FLOAT, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, MemoryType::DEFAULT, true, L"CubeMap"), false);
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, true, MemoryFlag::NONE, L"CubeMap"), false);
 
 	m_cubeDepth = Texture2D::MakeUnique();
 	N_RETURN(m_cubeDepth->Create(m_device.get(), gridSize, gridSize, Format::R32_FLOAT, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, MemoryType::DEFAULT, true, L"CubeDepth"), false);
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, true, MemoryFlag::NONE, L"CubeDepth"), false);
 
 	m_lightMap = Texture3D::MakeUnique();
 	N_RETURN(m_lightMap->Create(m_device.get(), m_lightGridSize, m_lightGridSize, m_lightGridSize,
 		Format::R11G11B10_FLOAT,ResourceFlag::ALLOW_UNORDERED_ACCESS | ResourceFlag::ALLOW_SIMULTANEOUS_ACCESS,
-		1, MemoryType::DEFAULT, L"LightMap"), false);
+		1, MemoryFlag::NONE, L"LightMap"), false);
 
 	m_cbPerFrame = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"RayCaster.CBPerFrame"), false);
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"RayCaster.CBPerFrame"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"RayCaster.CBPerObject"), false);
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"RayCaster.CBPerObject"), false);
 
 #if _CPU_CUBE_FACE_CULL_ == 2
 	m_cbCubeFaceList = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbCubeFaceList->Create(m_device.get(), sizeof(CBCubeFaceList[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"RayCaster.CBCubeFaceList"), false);
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"RayCaster.CBCubeFaceList"), false);
 #endif
 
 	// Create pipelines

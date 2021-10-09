@@ -49,13 +49,13 @@ bool ParticleRenderer::Init(uint32_t width, uint32_t height, const DescriptorTab
 	// Create resources
 	m_particles = StructuredBuffer::MakeUnique();
 	N_RETURN(m_particles->Create(m_device.get(), numParticles, sizeof(float[8]), ResourceFlag::ALLOW_UNORDERED_ACCESS,
-		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, L"Particles"), false);
+		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, MemoryFlag::NONE, L"Particles"), false);
 
 	for (auto& rtOIT : m_rtOITs) rtOIT = RenderTarget::MakeUnique();
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
 	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, L"ParticleRenderer.CBPerObject"), false);
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ParticleRenderer.CBPerObject"), false);
 
 	// Create pipelines
 	N_RETURN(createPipelineLayouts(), false);
@@ -73,9 +73,9 @@ bool ParticleRenderer::SetViewport(uint32_t width, uint32_t height)
 
 	const float clearTransm[4] = { 1.0f };
 	N_RETURN(m_rtOITs[0]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
-		ResourceFlag::NONE, 1, 1, nullptr, false, L"OITColor"), false);
+		ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"OITColor"), false);
 	N_RETURN(m_rtOITs[1]->Create(m_device.get(), width, height, Format::R8_UNORM, 1,
-		ResourceFlag::NONE, 1, 1, clearTransm, false, L"OITTransmittance"), false);
+		ResourceFlag::NONE, 1, 1, clearTransm, false, MemoryFlag::NONE, L"OITTransmittance"), false);
 
 	return createDescriptorTables();
 }
