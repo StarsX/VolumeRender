@@ -24,15 +24,16 @@ public:
 	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
 		const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
 		std::vector<XUSG::Resource::uptr>& uploaders, const char* meshFileName,
-		const wchar_t* irradianceMapFileName, const wchar_t* radianceMapFileName,
 		XUSG::Format backFormat, XUSG::Format rtFormat, XUSG::Format dsFormat,
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
 	bool SetViewport(uint32_t width, uint32_t height, XUSG::Format rtFormat,
 		XUSG::Format dsFormat, const float* clearColor);
+	bool SetRadiance(const XUSG::Descriptor& radiance);
 
 	void SetWorld(float scale, const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3* pPitchYawRoll = nullptr);
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
+	void SetSH(const XUSG::StructuredBuffer::sptr& coeffSH);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
 	void RenderShadow(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
@@ -40,7 +41,6 @@ public:
 
 	XUSG::RenderTarget* GetRenderTarget() const;
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;
-	XUSG::ShaderResource* GetIrradiance() const;
 	const XUSG::DepthStencil::uptr* GetDepthMaps() const;
 	const DirectX::XMFLOAT4X4& GetShadowVP() const;
 
@@ -70,18 +70,9 @@ protected:
 		SRV_TABLE_COLOR,
 		SRV_TABLE_DEPTH,
 		SRV_TABLE_SHADOW,
-		SRV_TABLE_IRRADIANCE,
 		SRV_TABLE_RADIANCE,
 
 		NUM_SRV_TABLE
-	};
-
-	enum LightProbeIndex : uint8_t
-	{
-		IRRADIANCE_MAP,
-		RADIANCE_MAP,
-
-		NUM_LIGHT_PROBE
 	};
 
 	bool createVB(XUSG::CommandList* pCommandList, uint32_t numVert,
@@ -120,7 +111,7 @@ protected:
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 	XUSG::ConstantBuffer::uptr	m_cbPerFrameEnv;
-	XUSG::ShaderResource::sptr	m_lightProbes[NUM_LIGHT_PROBE];
+	XUSG::StructuredBuffer::sptr m_coeffSH;
 
 	uint32_t				m_numIndices;
 	uint32_t				m_shadowMapSize;

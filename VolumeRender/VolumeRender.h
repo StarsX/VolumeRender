@@ -13,6 +13,7 @@
 
 #include "StepTimer.h"
 #include "RayCaster.h"
+#include "LightProbe.h"
 #include "ObjectRenderer.h"
 #include "ParticleRenderer.h"
 
@@ -65,6 +66,7 @@ private:
 
 	// App resources
 	std::unique_ptr<RayCaster>	m_rayCaster;
+	std::unique_ptr<LightProbe>	m_lightProbe;
 	std::unique_ptr<ObjectRenderer> m_objectRenderer;
 	std::unique_ptr<ParticleRenderer> m_particleRenderer;
 	XMFLOAT4X4	m_proj;
@@ -98,7 +100,6 @@ private:
 	float m_particleSize;
 	std::wstring m_volumeFile;
 	std::wstring m_radianceFile;
-	std::wstring m_irradianceFile;
 	std::string m_meshFileName;
 	XMFLOAT4 m_volPosScale;
 	XMFLOAT4 m_meshPosScale;

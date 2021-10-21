@@ -41,7 +41,8 @@ struct CBPerFrameEnv
 
 ObjectRenderer::ObjectRenderer(const Device::sptr& device) :
 	m_device(device),
-	m_lightProbes(),
+	m_srvTables(),
+	m_coeffSH(nullptr),
 	m_shadowMapSize(1024),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
@@ -59,8 +60,7 @@ ObjectRenderer::~ObjectRenderer()
 
 bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
-	const char* fileName, const wchar_t* irradianceMapFileName, const wchar_t* radianceMapFileName,
-	Format backFormat, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
+	const char* fileName, Format backFormat, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
 {
 	m_descriptorTableCache = descriptorTableCache;
 	SetWorld(posScale.w, XMFLOAT3(posScale.x, posScale.y, posScale.z));
@@ -71,27 +71,6 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
 	N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
 	m_sceneSize = objLoader.GetRadius() * posScale.w * 2.0f;
-
-	// Load input images
-	if (irradianceMapFileName && *irradianceMapFileName)
-	{
-		DDS::Loader textureLoader;
-		DDS::AlphaMode alphaMode;
-
-		uploaders.emplace_back(Resource::MakeUnique());
-		N_RETURN(textureLoader.CreateTextureFromFile(m_device.get(), pCommandList, irradianceMapFileName,
-			8192, false, m_lightProbes[IRRADIANCE_MAP], uploaders.back().get(), &alphaMode), false);
-	}
-
-	if (radianceMapFileName && *radianceMapFileName)
-	{
-		DDS::Loader textureLoader;
-		DDS::AlphaMode alphaMode;
-
-		uploaders.emplace_back(Resource::MakeUnique());
-		N_RETURN(textureLoader.CreateTextureFromFile(m_device.get(), pCommandList, radianceMapFileName,
-			8192, false, m_lightProbes[RADIANCE_MAP], uploaders.back().get(), &alphaMode), false);
-	}
 
 	// Create resources
 	const auto smFormat = Format::D16_UNORM;
@@ -111,12 +90,9 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBPerFrame"), false);
 
-	if (m_lightProbes[RADIANCE_MAP])
-	{
-		m_cbPerFrameEnv = ConstantBuffer::MakeUnique();
-		N_RETURN(m_cbPerFrameEnv->Create(m_device.get(), sizeof(CBPerFrameEnv[FrameCount]), FrameCount,
-			nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBPerFrameEnv"), false);
-	}
+	m_cbPerFrameEnv = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbPerFrameEnv->Create(m_device.get(), sizeof(CBPerFrameEnv[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBPerFrameEnv"), false);
 
 	// Create window size-dependent resource
 	//N_RETURN(SetViewport(width, height, dsFormat), false);
@@ -147,6 +123,15 @@ bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format rtForma
 	return createDescriptorTables();
 }
 
+bool ObjectRenderer::SetRadiance(const Descriptor& radiance)
+{
+	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+	descriptorTable->SetDescriptors(0, 1, &radiance);
+	X_RETURN(m_srvTables[SRV_TABLE_RADIANCE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+
+	return true;
+}
+
 void ObjectRenderer::SetWorld(float scale, const XMFLOAT3& pos, const XMFLOAT3* pPitchYawRoll)
 {
 	auto world = XMMatrixScaling(scale, scale, scale);
@@ -164,6 +149,11 @@ void ObjectRenderer::SetLight(const XMFLOAT3& pos, const XMFLOAT3& color, float 
 void ObjectRenderer::SetAmbient(const XMFLOAT3& color, float intensity)
 {
 	m_ambient = XMFLOAT4(color.x, color.y, color.z, intensity);
+}
+
+void ObjectRenderer::SetSH(const StructuredBuffer::sptr& coeffSH)
+{
+	m_coeffSH = coeffSH;
 }
 
 void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
@@ -202,7 +192,7 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 		pCbData->Ambient = m_ambient;
 	}
 
-	if (m_lightProbes[RADIANCE_MAP])
+	if (m_srvTables[SRV_TABLE_RADIANCE])
 	{
 		const auto projToWorld = XMMatrixInverse(nullptr, viewProj);
 		const auto pCbData = reinterpret_cast<CBPerFrameEnv*>(m_cbPerFrameEnv->Map(frameIndex));
@@ -239,7 +229,7 @@ void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frame
 void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex, bool drawScene)
 {
 	if (drawScene) render(pCommandList, frameIndex);
-	if (m_lightProbes[RADIANCE_MAP]) environment(pCommandList, frameIndex);
+	if (m_srvTables[SRV_TABLE_RADIANCE]) environment(pCommandList, frameIndex);
 }
 
 void ObjectRenderer::ToneMap(const CommandList* pCommandList)
@@ -264,11 +254,6 @@ RenderTarget* ObjectRenderer::GetRenderTarget() const
 DepthStencil* ObjectRenderer::GetDepthMap(DepthIndex index) const
 {
 	return m_depths[index].get();
-}
-
-ShaderResource* ObjectRenderer::GetIrradiance() const
-{
-	return m_lightProbes[IRRADIANCE_MAP].get();
 }
 
 const DepthStencil::uptr* ObjectRenderer::GetDepthMaps() const
@@ -341,18 +326,20 @@ bool ObjectRenderer::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRootCBV(0, 0, 0, Shader::Stage::VS);
 		pipelineLayout->SetRootCBV(1, 0, 0, Shader::Stage::PS);
-		pipelineLayout->SetRange(2, DescriptorType::SRV, 3, 0);
+		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetConstants(3, 1, 1, 0, Shader::Stage::PS);
+		pipelineLayout->SetRootSRV(4, 1, 0, DescriptorFlag::NONE, Shader::Stage::PS);
+		pipelineLayout->SetRange(5, DescriptorType::SRV, 1, 2);
 		pipelineLayout->SetStaticSamplers(samplers, static_cast<uint32_t>(size(samplers)), 0, 0, Shader::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::VS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
+		pipelineLayout->SetShaderStage(5, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
 	// Environment mapping
-	if (m_lightProbes[RADIANCE_MAP])
 	{
 		const auto sampler = m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_WRAP);
 
@@ -416,7 +403,6 @@ bool ObjectRenderer::createPipelines(Format backFormat, Format rtFormat, Format 
 	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 
 	// Environment mapping
-	if (m_lightProbes[RADIANCE_MAP])
 	{
 		
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSEnvironment.cso"), false);
@@ -470,20 +456,6 @@ bool ObjectRenderer::createDescriptorTables()
 		X_RETURN(m_srvTables[SRV_TABLE_SHADOW], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
-	if (m_lightProbes[IRRADIANCE_MAP])
-	{
-		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_lightProbes[IRRADIANCE_MAP]->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_IRRADIANCE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
-	}
-
-	if (m_lightProbes[RADIANCE_MAP])
-	{
-		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_lightProbes[RADIANCE_MAP]->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_RADIANCE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
-	}
-
 	return true;
 }
 
@@ -496,12 +468,14 @@ void ObjectRenderer::render(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 
 	// Set descriptor tables
-	uint8_t hasLightProbes = m_lightProbes[IRRADIANCE_MAP] ? IRRADIANCE_BIT : 0;
-	hasLightProbes |= m_lightProbes[RADIANCE_MAP] ? RADIANCE_BIT : 0;
+	uint8_t hasLightProbes = m_coeffSH ? IRRADIANCE_BIT : 0;
+	hasLightProbes |= m_srvTables[SRV_TABLE_RADIANCE] ? RADIANCE_BIT : 0;
 	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerObject.get(), m_cbPerObject->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsRootConstantBufferView(1, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsDescriptorTable(2, m_srvTables[SRV_TABLE_SHADOW]);
 	pCommandList->SetGraphics32BitConstant(3, hasLightProbes);
+	if (m_coeffSH) pCommandList->SetGraphicsRootShaderResourceView(4, m_coeffSH.get());
+	if (m_srvTables[SRV_TABLE_RADIANCE]) pCommandList->SetGraphicsDescriptorTable(5, m_srvTables[SRV_TABLE_RADIANCE]);
 	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
 	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
 

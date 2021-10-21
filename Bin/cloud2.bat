@@ -1,1 +1,1 @@
-start VolumeRender.exe -mesh Assets/dragon.obj 0 -4 0 1.4 -volume Assets/cloud2.dds 0 -4 0 14 -irradiance Assets/Beach_Irradiance.dds -radiance Assets/Beach_Radiance.dds -gridSize 256 -lightGridSize 256 -maxRaySamples 256 -maxLightSamples 256 -pSize 1.0
+start VolumeRender.exe -mesh Assets/dragon.obj 0 -4 0 1.4 -volume Assets/cloud2.dds 0 -4 0 14 -radiance Assets/Beach.dds -gridSize 256 -lightGridSize 256 -maxRaySamples 256 -maxLightSamples 256 -pSize 1.0
