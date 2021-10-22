@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "DXFramework.h"
 #include "Core/XUSG.h"
 
 class ObjectRenderer
@@ -51,7 +50,6 @@ protected:
 	{
 		DEPTH_PASS,
 		BASE_PASS,
-		ENVIRONMENT,
 		TONE_MAP,
 
 		NUM_PIPELINE
@@ -86,7 +84,6 @@ protected:
 
 	void render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void renderDepth(const XUSG::CommandList* pCommandList, uint8_t frameIndex, const XUSG::ConstantBuffer* pCb);
-	void environment(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::Device::sptr m_device;
 
@@ -110,7 +107,6 @@ protected:
 	XUSG::ConstantBuffer::uptr	m_cbShadow;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
 	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
-	XUSG::ConstantBuffer::uptr	m_cbPerFrameEnv;
 	XUSG::StructuredBuffer::sptr m_coeffSH;
 
 	uint32_t				m_numIndices;

@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "DXFramework.h"
 #include "Core/XUSG.h"
 
 class LightProbe
@@ -14,10 +13,13 @@ public:
 	virtual ~LightProbe();
 
 	bool Init(XUSG::CommandList* pCommandList, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
-		std::vector<XUSG::Resource::uptr>& uploaders, const wchar_t* fileName);
+		std::vector<XUSG::Resource::uptr>& uploaders, const wchar_t* fileName,
+		XUSG::Format rtFormat, XUSG::Format dsFormat);
 	bool CreateDescriptorTables();
 
+	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
 	void Process(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void RenderEnvironment(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::ShaderResource* GetRadiance() const;
 	XUSG::StructuredBuffer::sptr GetSH() const;
@@ -31,12 +33,13 @@ protected:
 		SH_CUBE_MAP,
 		SH_SUM,
 		SH_NORMALIZE,
+		ENVIRONMENT,
 
 		NUM_PIPELINE
 	};
 
 	bool createPipelineLayouts();
-	bool createPipelines();
+	bool createPipelines(XUSG::Format rtFormat, XUSG::Format dsFormat);
 	bool createDescriptorTables();
 
 	void shCubeMap(const XUSG::CommandList* pCommandList, uint8_t order);
@@ -46,6 +49,7 @@ protected:
 	XUSG::Device::sptr m_device;
 
 	XUSG::ShaderPool::uptr				m_shaderPool;
+	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
 	XUSG::Compute::PipelineCache::uptr	m_computePipelineCache;
 	XUSG::PipelineLayoutCache::uptr		m_pipelineLayoutCache;
 	XUSG::DescriptorTableCache::sptr	m_descriptorTableCache;
@@ -61,6 +65,8 @@ protected:
 	XUSG::StructuredBuffer::sptr m_coeffSH[2];
 	XUSG::StructuredBuffer::uptr m_weightSH[2];
 
-	uint32_t				m_numSHTexels;
-	uint8_t					m_shBufferParity;
+	XUSG::ConstantBuffer::uptr m_cbPerFrame;
+
+	uint32_t	m_numSHTexels;
+	uint8_t		m_shBufferParity;
 };

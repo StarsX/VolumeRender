@@ -8,17 +8,23 @@
 #undef _INDEPENDENT_DDS_LOADER_
 
 #define SH_MAX_ORDER	6
-#define SH_TEX_SIZE		256
 #define SH_GROUP_SIZE	32
 
 using namespace std;
 using namespace DirectX;
 using namespace XUSG;
 
+struct CBPerFrame
+{
+	DirectX::XMFLOAT4	EyePos;
+	DirectX::XMFLOAT4X4	ScreenToWorld;
+};
+
 LightProbe::LightProbe(const Device::sptr& device) :
 	m_device(device)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
+	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device.get());
 	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device.get());
 	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device.get());
 }
@@ -28,7 +34,7 @@ LightProbe::~LightProbe()
 }
 
 bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableCache::sptr& descriptorTableCache,
-	vector<Resource::uptr>& uploaders, const wchar_t* fileName)
+	vector<Resource::uptr>& uploaders, const wchar_t* fileName, Format rtFormat, Format dsFormat)
 {
 	m_descriptorTableCache = descriptorTableCache;
 
@@ -47,7 +53,7 @@ bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableCache::spt
 	}
 
 	// Create resources and pipelines
-	m_numSHTexels = SH_TEX_SIZE * SH_TEX_SIZE * 6;
+	m_numSHTexels = texWidth * texHeight * 6;
 	const auto numGroups = DIV_UP(m_numSHTexels, SH_GROUP_SIZE);
 	const auto numSumGroups = DIV_UP(numGroups, SH_GROUP_SIZE);
 	const auto maxElements = SH_MAX_ORDER * SH_MAX_ORDER * numGroups;
@@ -69,8 +75,12 @@ bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableCache::spt
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHWeights1");
 
+	m_cbPerFrame = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"LightProbe.CBPerFrame"), false);
+
 	N_RETURN(createPipelineLayouts(), false);
-	N_RETURN(createPipelines(), false);
+	N_RETURN(createPipelines(rtFormat, dsFormat), false);
 
 	return true;
 }
@@ -78,6 +88,14 @@ bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableCache::spt
 bool LightProbe::CreateDescriptorTables()
 {
 	return createDescriptorTables();
+}
+
+void LightProbe::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
+{
+	const auto projToWorld = XMMatrixInverse(nullptr, viewProj);
+	const auto pCbData = reinterpret_cast<CBPerFrame*>(m_cbPerFrame->Map(frameIndex));
+	pCbData->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
+	XMStoreFloat4x4(&pCbData->ScreenToWorld, XMMatrixTranspose(projToWorld));
 }
 
 void LightProbe::Process(const CommandList* pCommandList, uint8_t frameIndex)
@@ -94,6 +112,20 @@ void LightProbe::Process(const CommandList* pCommandList, uint8_t frameIndex)
 	shCubeMap(pCommandList, order);
 	shSum(pCommandList, order);
 	shNormalize(pCommandList, order);
+}
+
+void LightProbe::RenderEnvironment(const CommandList* pCommandList, uint8_t frameIndex)
+{
+	// Set descriptor tables
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
+	pCommandList->SetGraphicsRootConstantBufferView(0, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsDescriptorTable(1, m_srvTable);
+
+	// Set pipeline state
+	pCommandList->SetPipelineState(m_pipelines[ENVIRONMENT]);
+
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+	pCommandList->Draw(3, 1, 0, 0);
 }
 
 ShaderResource* LightProbe::GetRadiance() const
@@ -142,11 +174,26 @@ bool LightProbe::createPipelineLayouts()
 			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"SHNormalizeLayout"), false);
 	}
 
+	// Environment mapping
+	{
+		const auto sampler = m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_WRAP);
+
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRootCBV(0, 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
+		pipelineLayout->SetStaticSamplers(&sampler, 1, 0, 0, Shader::PS);
+		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+			PipelineLayoutFlag::NONE, L"EnvironmentLayout"), false);
+	}
+
 	return true;
 }
 
-bool LightProbe::createPipelines()
+bool LightProbe::createPipelines(Format rtFormat, Format dsFormat)
 {
+	auto vsIndex = 0u;
+	auto psIndex = 0u;
 	auto csIndex = 0u;
 
 	// SH cube map transform
@@ -177,6 +224,22 @@ bool LightProbe::createPipelines()
 		state->SetPipelineLayout(m_pipelineLayouts[SH_NORMALIZE]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex));
 		X_RETURN(m_pipelines[SH_NORMALIZE], state->GetPipeline(m_computePipelineCache.get(), L"SHNormalize"), false);
+	}
+
+	// Environment mapping
+	{
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSEnvironment.cso"), false);
+
+		const auto state = Graphics::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->DSSetState(Graphics::DEPTH_READ_LESS_EQUAL, m_graphicsPipelineCache.get());
+		state->OMSetRTVFormats(&rtFormat, 1);
+		state->OMSetDSVFormat(dsFormat);
+		X_RETURN(m_pipelines[ENVIRONMENT], state->GetPipeline(m_graphicsPipelineCache.get(), L"Environment"), false);
 	}
 
 	return true;
@@ -213,7 +276,7 @@ void LightProbe::shCubeMap(const CommandList* pCommandList, uint8_t order)
 	pCommandList->SetComputeRootUnorderedAccessView(2, m_weightSH[0].get());
 	pCommandList->SetComputeDescriptorTable(3, m_srvTable);
 	pCommandList->SetCompute32BitConstant(4, order);
-	pCommandList->SetCompute32BitConstant(4, SH_TEX_SIZE, SizeOfInUint32(order));
+	pCommandList->SetCompute32BitConstant(4, m_radiance->GetWidth(), SizeOfInUint32(order));
 	pCommandList->SetPipelineState(m_pipelines[SH_CUBE_MAP]);
 
 	pCommandList->Dispatch(DIV_UP(m_numSHTexels, SH_GROUP_SIZE), 1, 1);
