@@ -51,7 +51,6 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_particleSize(2.5f),
 	m_volumeFile(L""),
 	m_radianceFile(L""),
-	m_irradianceFile(L""),
 	m_meshFileName("Assets/bunny.obj"),
 	m_volPosScale(0.0f, 0.0f, 0.0f, 10.0f),
 	m_meshPosScale(0.0f, -10.0f, 0.0f, 1.5f)
@@ -160,30 +159,31 @@ void VolumeRender::LoadAssets()
 	// Init assets
 	vector<Resource::uptr> uploaders(0);
 	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 60, 0);
-	m_objectRenderer = make_unique<ObjectRenderer>(m_device);
-	if (!m_objectRenderer) ThrowIfFailed(E_FAIL);
-	if (!m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
-		uploaders, m_meshFileName.c_str(), m_irradianceFile.c_str(), m_radianceFile.c_str(),
-		g_backFormat, g_rtFormat, g_dsFormat, m_meshPosScale))
-		ThrowIfFailed(E_FAIL);
 
-	m_rayCaster = make_unique<RayCaster>(m_device);
-	if (!m_rayCaster) ThrowIfFailed(E_FAIL);
-	if (!m_rayCaster->Init(m_descriptorTableCache, g_rtFormat, m_gridSize,
-		m_lightGridSize, m_objectRenderer->GetDepthMaps()))
-		ThrowIfFailed(E_FAIL);
+	if (!m_radianceFile.empty())
+	{
+		X_RETURN(m_lightProbe, make_unique<LightProbe>(m_device), ThrowIfFailed(E_FAIL));
+		N_RETURN(m_lightProbe->Init(pCommandList, m_descriptorTableCache, uploaders,
+			m_radianceFile.c_str(), g_rtFormat, g_dsFormat), ThrowIfFailed(E_FAIL));
+	}
+
+	X_RETURN(m_objectRenderer, make_unique<ObjectRenderer>(m_device), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
+		uploaders, m_meshFileName.c_str(), g_backFormat, g_rtFormat, g_dsFormat, m_meshPosScale),
+		ThrowIfFailed(E_FAIL));
+
+	X_RETURN(m_rayCaster, make_unique<RayCaster>(m_device), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_rayCaster->Init(m_descriptorTableCache, g_rtFormat, m_gridSize,
+		m_lightGridSize, m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
 	const auto volumeSize = m_volPosScale.w * 2.0f;
 	const auto volumePos = XMFLOAT3(m_volPosScale.x, m_volPosScale.y, m_volPosScale.z);
 	m_rayCaster->SetVolumeWorld(volumeSize, volumePos);
 	m_rayCaster->SetLightMapWorld(volumeSize * 2.0f, volumePos);
 	m_rayCaster->SetMaxSamples(m_maxRaySamples, m_maxLightSamples);
-	m_rayCaster->SetIrradiance(m_objectRenderer->GetIrradiance());
 
-	m_particleRenderer = make_unique<ParticleRenderer>(m_device);
-	if (!m_particleRenderer) ThrowIfFailed(E_FAIL);
-	if (!m_particleRenderer->Init(m_width, m_height, m_descriptorTableCache,
-		g_rtFormat, g_dsFormat, m_numParticles, m_particleSize))
-		ThrowIfFailed(E_FAIL);
+	X_RETURN(m_particleRenderer, make_unique<ParticleRenderer>(m_device), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_particleRenderer->Init(m_width, m_height, m_descriptorTableCache,
+		g_rtFormat, g_dsFormat, m_numParticles, m_particleSize), ThrowIfFailed(E_FAIL));
 
 	if (m_volumeFile.empty()) m_rayCaster->InitVolumeData(pCommandList);
 	else m_rayCaster->LoadVolumeData(pCommandList, m_volumeFile.c_str(), uploaders);
@@ -254,6 +254,11 @@ void VolumeRender::CreateResources()
 		N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device.get(), m_swapChain.get(), n), ThrowIfFailed(E_FAIL));
 	}
 
+	if (m_lightProbe)
+	{
+		N_RETURN(m_lightProbe->CreateDescriptorTables(), ThrowIfFailed(E_FAIL));
+		N_RETURN(m_objectRenderer->SetRadiance(m_lightProbe->GetRadiance()->GetSRV()), ThrowIfFailed(E_FAIL));
+	}
 	N_RETURN(m_objectRenderer->SetViewport(m_width, m_height, g_rtFormat, g_dsFormat, m_clearColor), ThrowIfFailed(E_FAIL));
 	N_RETURN(m_rayCaster->SetDepthMaps(m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
 	N_RETURN(m_particleRenderer->SetViewport(m_width, m_height), ThrowIfFailed(E_FAIL));
@@ -300,6 +305,7 @@ void VolumeRender::OnUpdate()
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	const auto viewProj = view * proj;
+	if (m_lightProbe) m_lightProbe->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_objectRenderer->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_objectRenderer->GetShadowVP(), m_eyePt);
 	m_particleRenderer->UpdateFrame(m_frameIndex, view, proj, m_eyePt);
@@ -542,11 +548,6 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 		{
 			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_maxLightSamples);
 		}
-		else if (_wcsnicmp(argv[i], L"-irradiance", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/irradiance", wcslen(argv[i])) == 0)
-		{
-			m_irradianceFile = i + 1 < argc ? argv[++i] : m_irradianceFile;
-		}
 		else if (_wcsnicmp(argv[i], L"-radiance", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/radiance", wcslen(argv[i])) == 0)
 		{
@@ -577,6 +578,18 @@ void VolumeRender::PopulateCommandList()
 	};
 	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
+	if (m_lightProbe)
+	{
+		static auto isFirstFrame = true;
+		if (isFirstFrame)
+		{
+			m_lightProbe->Process(pCommandList, m_frameIndex);
+			m_objectRenderer->SetSH(m_lightProbe->GetSH());
+			m_rayCaster->SetSH(m_lightProbe->GetSH());
+			isFirstFrame = false;
+		}
+	}
+
 	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex, m_showMesh);
 
 	ResourceBarrier barriers[3];
@@ -601,6 +614,7 @@ void VolumeRender::PopulateCommandList()
 	pCommandList->RSSetScissorRects(1, &scissorRect);
 
 	m_objectRenderer->Render(pCommandList, m_frameIndex, m_showMesh);
+	if (m_lightProbe) m_lightProbe->RenderEnvironment(pCommandList, m_frameIndex);
 
 	switch (g_renderMethod)
 	{

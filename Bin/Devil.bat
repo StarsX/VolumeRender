@@ -1,1 +1,1 @@
-start VolumeRender.exe -mesh Assets/bunny.obj 0 -10 0 1.2 -volume Assets/Devil.dds 0 0 0 10 -irradiance Assets/Arche_Irradiance.dds -radiance Assets/Arche_Radiance.dds -gridSize 256 -lightGridSize 256 -maxRaySamples 256 -maxLightSamples 256 -pSize 1.0
+start VolumeRender.exe -mesh Assets/bunny.obj 0 -10 0 1.2 -volume Assets/Devil.dds 0 0 0 10 -radiance Assets/Arche.dds -gridSize 256 -lightGridSize 256 -maxRaySamples 256 -maxLightSamples 256 -pSize 1.0
