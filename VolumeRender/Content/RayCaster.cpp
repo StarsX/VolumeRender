@@ -376,7 +376,7 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 		pCbData->Ambient = m_ambient;
 	}
 
-	// Per object
+	// Per-object
 	{
 		const auto lightWorld = XMLoadFloat3x4(&m_lightMapWorld);
 		const auto lightWorldI = XMMatrixInverse(nullptr, lightWorld);
