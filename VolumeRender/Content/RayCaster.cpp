@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------------------------
-// Copyright (c) XU, Tianchen. All rights reserved.
+// Copyright (c) XU, Tianchen & ZENG, Wei. All rights reserved.
 //--------------------------------------------------------------------------------------
 
 #include "SharedConsts.h"
@@ -382,12 +382,13 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 		const auto lightWorldI = XMMatrixInverse(nullptr, lightWorld);
 
 		const auto world = XMLoadFloat3x4(&m_volumeWorld);
+		const auto worldI = XMMatrixInverse(nullptr, world);
 		const auto worldViewProj = world * viewProj;
 
 		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
 		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(worldViewProj));
 		XMStoreFloat4x4(&pCbData->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
-		XMStoreFloat3x4(&pCbData->WorldI, XMMatrixInverse(nullptr, world));
+		XMStoreFloat3x4(&pCbData->WorldI, worldI);
 		XMStoreFloat3x4(&pCbData->World, world);
 		XMStoreFloat3x4(&pCbData->LocalToLight, world * lightWorldI);
 
