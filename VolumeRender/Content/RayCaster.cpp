@@ -519,7 +519,7 @@ bool RayCaster::createPipelineLayouts()
 #if _CPU_CUBE_FACE_CULL_ == 1
 		pipelineLayout->SetConstants(7, 1, 3);
 #elif _CPU_CUBE_FACE_CULL_ == 2
-		pipelineLayout->SetRootCBV(8, 3);
+		pipelineLayout->SetRootCBV(7, 3);
 #endif
 		X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayMarchingLayout"), false);
@@ -877,7 +877,7 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 #if _CPU_CUBE_FACE_CULL_ == 1
 	pCommandList->SetCompute32BitConstant(7, m_visibilityMask);
 #elif _CPU_CUBE_FACE_CULL_ == 2
-	pCommandList->SetComputeRootConstantBufferView(8, m_cbCubeFaceList.get(), m_cbCubeFaceList->GetCBVOffset(frameIndex));
+	pCommandList->SetComputeRootConstantBufferView(7, m_cbCubeFaceList.get(), m_cbCubeFaceList->GetCBVOffset(frameIndex));
 #endif
 
 	// Dispatch cube
