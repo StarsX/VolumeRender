@@ -3,6 +3,7 @@
 //--------------------------------------------------------------------------------------
 
 #ifdef _HAS_LIGHT_PROBE_
+#define SH_ORDER 3
 #include "SHIrradiance.hlsli"
 #endif
 
