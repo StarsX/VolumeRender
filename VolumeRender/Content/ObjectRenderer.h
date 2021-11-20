@@ -9,6 +9,14 @@
 class ObjectRenderer
 {
 public:
+	enum RenderTargetIndex : uint8_t
+	{
+		RT_COLOR,
+		RT_VELOCITY,
+
+		NUM_RENDER_TARGET
+	};
+
 	enum DepthIndex : uint8_t
 	{
 		DEPTH_MAP,
@@ -40,7 +48,7 @@ public:
 	void TemporalAA(const XUSG::CommandList* pCommandList);
 	void ToneMap(const XUSG::CommandList* pCommandList);
 
-	XUSG::RenderTarget* GetRenderTarget() const;
+	XUSG::RenderTarget* GetRenderTarget(RenderTargetIndex index) const;
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;
 	const XUSG::DepthStencil::uptr* GetDepthMaps() const;
 	const DirectX::XMFLOAT4X4& GetShadowVP() const;
@@ -85,14 +93,6 @@ protected:
 		UAV_TABLE_TAA1,
 
 		NUM_UAV_TABLE
-	};
-
-	enum RenderTargetIndex : uint8_t
-	{
-		RT_COLOR,
-		RT_VELOCITY,
-
-		NUM_RENDER_TARGET
 	};
 
 	bool createVB(XUSG::CommandList* pCommandList, uint32_t numVert,
@@ -141,6 +141,7 @@ protected:
 	DirectX::XMFLOAT3		m_lightPt;
 	DirectX::XMFLOAT4		m_lightColor;
 	DirectX::XMFLOAT4		m_ambient;
+	DirectX::XMFLOAT4X4		m_worldViewProj;
 	DirectX::XMFLOAT3X4		m_world;
 	DirectX::XMFLOAT4X4		m_shadowVP;
 

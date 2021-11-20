@@ -592,20 +592,23 @@ void VolumeRender::PopulateCommandList()
 
 	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex, m_showMesh);
 
-	ResourceBarrier barriers[3];
-	const auto pColor = m_objectRenderer->GetRenderTarget();
+	ResourceBarrier barriers[4];
+	const auto pColor = m_objectRenderer->GetRenderTarget(ObjectRenderer::RT_COLOR);
+	const auto pVelocity = m_objectRenderer->GetRenderTarget(ObjectRenderer::RT_VELOCITY);
 	const auto pDepth = m_objectRenderer->GetDepthMap(ObjectRenderer::DEPTH_MAP);
 	const auto pShadow = m_objectRenderer->GetDepthMap(ObjectRenderer::SHADOW_MAP);
 	auto numBarriers = pColor->SetBarrier(barriers, ResourceState::RENDER_TARGET);
+	numBarriers = pVelocity->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	//auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = pDepth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
 	numBarriers = pShadow->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target
+	const Descriptor pRTVs[] = { pColor->GetRTV(), pVelocity->GetRTV() };
 	pCommandList->ClearRenderTargetView(pColor->GetRTV(), m_clearColor);
 	pCommandList->ClearDepthStencilView(pDepth->GetDSV(), ClearFlag::DEPTH, 1.0f);
-	pCommandList->OMSetRenderTargets(1, &pColor->GetRTV(), &pDepth->GetDSV());
+	pCommandList->OMSetRenderTargets(static_cast<uint32_t>(size(pRTVs)), pRTVs, &pDepth->GetDSV());
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));

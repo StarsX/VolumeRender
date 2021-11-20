@@ -18,8 +18,10 @@ enum LightProbeBit : uint8_t
 struct CBPerObject
 {
 	XMFLOAT4X4 WorldViewProj;
+	XMFLOAT4X4 WorldViewProjPrev;
 	XMFLOAT3X4 World;
 	XMFLOAT4X4 ShadowWVP;
+	XMFLOAT2 ProjBias;
 };
 
 struct CBPerFrame
@@ -156,6 +158,63 @@ void ObjectRenderer::SetSH(const StructuredBuffer::sptr& coeffSH)
 	m_coeffSH = coeffSH;
 }
 
+static const XMFLOAT2& IncrementalHalton()
+{
+	static auto haltonBase = XMUINT2(0, 0);
+	static auto halton = XMFLOAT2(0.0f, 0.0f);
+
+	// Base 2
+	{
+		// Bottom bit always changes, higher bits
+		// Change less frequently.
+		auto change = 0.5f;
+		auto oldBase = haltonBase.x++;
+		auto diff = haltonBase.x ^ oldBase;
+
+		// Diff will be of the form 0*1+, i.e. one bits up until the last carry.
+		// Expected iterations = 1 + 0.5 + 0.25 + ... = 2
+		do
+		{
+			halton.x += (oldBase & 1) ? -change : change;
+			change *= 0.5f;
+
+			diff = diff >> 1;
+			oldBase = oldBase >> 1;
+		} while (diff);
+	}
+
+	// Base 3
+	{
+		const auto oneThird = 1.0f / 3.0f;
+		auto mask = 0x3u;	// Also the max base 3 digit
+		auto add = 0x1u;	// Amount to add to force carry once digit == 3
+		auto change = oneThird;
+		++haltonBase.y;
+
+		// Expected iterations: 1.5
+		while (true)
+		{
+			if ((haltonBase.y & mask) == mask)
+			{
+				haltonBase.y += add;	// Force carry into next 2-bit digit
+				halton.y -= 2 * change;
+
+				mask = mask << 2;
+				add = add << 2;
+
+				change *= oneThird;
+			}
+			else
+			{
+				halton.y += change;	// We know digit n has gone from a to a + 1
+				break;
+			}
+		};
+	}
+
+	return halton;
+}
+
 void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOAT3& eyePt)
 {
 	XMFLOAT4X4 shadowWVP;
@@ -177,11 +236,21 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 		*pCbData = shadowWVP;
 	}
 
+	const auto halton = IncrementalHalton();
+	XMFLOAT2 jitter =
+	{
+		(halton.x * 2.0f - 1.0f) / m_viewport.x,
+		(halton.y * 2.0f - 1.0f) / m_viewport.y
+	};
+
 	{
 		const auto pCbData = reinterpret_cast<CBPerObject*>(m_cbPerObject->Map(frameIndex));
 		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(world * viewProj));
 		XMStoreFloat3x4(&pCbData->World, world);
 		pCbData->ShadowWVP = shadowWVP;
+		pCbData->ProjBias = jitter;
+		pCbData->WorldViewProjPrev = m_worldViewProj;
+		m_worldViewProj = pCbData->WorldViewProj;
 	}
 
 	{
@@ -276,9 +345,9 @@ void ObjectRenderer::ToneMap(const CommandList* pCommandList)
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
-RenderTarget* ObjectRenderer::GetRenderTarget() const
+RenderTarget* ObjectRenderer::GetRenderTarget(RenderTargetIndex index) const
 {
-	return m_renderTargets[RT_COLOR].get();
+	return m_renderTargets[index].get();
 }
 
 DepthStencil* ObjectRenderer::GetDepthMap(DepthIndex index) const
