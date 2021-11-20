@@ -34,6 +34,7 @@ ObjectRenderer::ObjectRenderer(const Device::sptr& device) :
 	m_device(device),
 	m_srvTables(),
 	m_coeffSH(nullptr),
+	m_frameParity(0),
 	m_shadowMapSize(1024),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
@@ -98,10 +99,22 @@ bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format rtForma
 	m_viewport = XMUINT2(width, height);
 
 	// Recreate window size-dependent resource
-	m_color = RenderTarget::MakeUnique();
-	N_RETURN(m_color->Create(m_device.get(), width, height, rtFormat, 1,
+	for (auto& renderTarget : m_renderTargets) renderTarget = RenderTarget::MakeUnique();
+	N_RETURN(m_renderTargets[RT_COLOR]->Create(m_device.get(), width, height, rtFormat, 1,
 		ResourceFlag::NONE, 1, 1, clearColor, false, MemoryFlag::NONE,
 		L"RenderTarget"), false);
+	m_renderTargets[RT_VELOCITY]->Create(m_device.get(), width, height, Format::R16G16_FLOAT,
+		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Velocity");
+
+	// Temporal AA
+	for (uint8_t i = 0; i < 2; ++i)
+	{
+		auto& temporalView = m_temporalViews[i];
+		temporalView = Texture2D::MakeUnique();
+		N_RETURN(temporalView->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
+			ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE,
+			(L"TemporalView" + to_wstring(i)).c_str()), false);
+	}
 
 	m_depths[DEPTH_MAP] = DepthStencil::MakeUnique();
 	N_RETURN(m_depths[DEPTH_MAP]->Create(m_device.get(), width, height, dsFormat,
@@ -178,6 +191,8 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 		pCbData->LightColor = m_lightColor;
 		pCbData->Ambient = m_ambient;
 	}
+
+	m_frameParity = !m_frameParity;
 }
 
 void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frameIndex, bool drawScene)
@@ -210,8 +225,44 @@ void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex,
 	if (drawScene) render(pCommandList, frameIndex);
 }
 
+void ObjectRenderer::Postprocess(const CommandList* pCommandList)
+{
+	TemporalAA(pCommandList);
+	ToneMap(pCommandList);
+}
+
+void ObjectRenderer::TemporalAA(const CommandList* pCommandList)
+{
+	ResourceBarrier barriers[4];
+	auto numBarriers = m_temporalViews[m_frameParity]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
+	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = m_temporalViews[!m_frameParity]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	//numBarriers = m_temporalViews[!m_frameParity]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		//ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
+	//numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
+		//numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
+	pCommandList->Barrier(numBarriers, barriers);
+
+	// Set descriptor tables
+	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
+	pCommandList->SetComputeDescriptorTable(0, m_uavTables[UAV_TABLE_TAA + m_frameParity]);
+	pCommandList->SetComputeDescriptorTable(1, m_srvTables[SRV_TABLE_TAA + m_frameParity]);
+
+	// Set pipeline state
+	pCommandList->SetPipelineState(m_pipelines[TEMPORAL_AA]);
+	pCommandList->Dispatch(DIV_UP(m_viewport.x, 8), DIV_UP(m_viewport.y, 8), 1);
+}
+
 void ObjectRenderer::ToneMap(const CommandList* pCommandList)
 {
+	ResourceBarrier barrier;
+	const auto numBarriers = m_temporalViews[m_frameParity]->SetBarrier(
+		&barrier, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE);
+	pCommandList->Barrier(numBarriers, &barrier);
+
 	// Set pipeline state
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[TONE_MAP]);
 	pCommandList->SetPipelineState(m_pipelines[TONE_MAP]);
@@ -219,14 +270,15 @@ void ObjectRenderer::ToneMap(const CommandList* pCommandList)
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 
 	// Set descriptor tables
-	pCommandList->SetGraphicsDescriptorTable(0, m_srvTables[SRV_TABLE_COLOR]);
+	pCommandList->SetGraphicsDescriptorTable(0, m_srvTables[SRV_TABLE_PP + m_frameParity]);
+	//pCommandList->SetGraphicsDescriptorTable(0, m_srvTables[SRV_TABLE_TAA]);
 
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
 RenderTarget* ObjectRenderer::GetRenderTarget() const
 {
-	return m_color.get();
+	return m_renderTargets[RT_COLOR].get();
 }
 
 DepthStencil* ObjectRenderer::GetDepthMap(DepthIndex index) const
@@ -317,6 +369,17 @@ bool ObjectRenderer::createPipelineLayouts()
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
+	// Temporal AA
+	{
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRange(0, DescriptorType::UAV, 1, 0, 0,
+			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		pipelineLayout->SetRange(1, DescriptorType::SRV, 3, 0);
+		pipelineLayout->SetStaticSamplers(&m_descriptorTableCache->GetSampler(SamplerPreset::LINEAR_WRAP), 1, 0);
+		X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+			PipelineLayoutFlag::NONE, L"TemporalAALayout"), false);
+	}
+
 	// Tone mapping
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
@@ -333,6 +396,7 @@ bool ObjectRenderer::createPipelines(Format backFormat, Format rtFormat, Format 
 {
 	auto vsIndex = 0u;
 	auto psIndex = 0u;
+	auto csIndex = 0u;
 
 	// Depth pass
 	{
@@ -365,6 +429,16 @@ bool ObjectRenderer::createPipelines(Format backFormat, Format rtFormat, Format 
 		X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
 	}
 
+	// Temporal AA
+	{
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSTemporalAA.cso"), false);
+
+		const auto state = Compute::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
+		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
+		X_RETURN(m_pipelines[TEMPORAL_AA], state->GetPipeline(m_computePipelineCache.get(), L"TemporalAA"), false);
+	}
+
 	// Tone mapping
 	{
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
@@ -385,11 +459,34 @@ bool ObjectRenderer::createPipelines(Format backFormat, Format rtFormat, Format 
 
 bool ObjectRenderer::createDescriptorTables()
 {
-	// Create SRV tables
+	// Temporal AA output UAVs
+	for (auto i = 0u; i < 2; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_color->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_COLOR], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		descriptorTable->SetDescriptors(0, 1, &m_temporalViews[i]->GetUAV());
+		X_RETURN(m_uavTables[UAV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
+	// Temporal AA input SRVs
+	for (auto i = 0u; i < 2; ++i)
+	{
+		const Descriptor descriptors[] =
+		{
+			m_renderTargets[RT_COLOR]->GetSRV(),
+			m_temporalViews[!i]->GetSRV(),
+			m_renderTargets[RT_VELOCITY]->GetSRV()
+		};
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		X_RETURN(m_srvTables[SRV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	}
+
+	// Postprocess SRVs
+	for (auto i = 0u; i < 2; ++i)
+	{
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_temporalViews[i]->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_PP + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	{
