@@ -18,7 +18,7 @@ struct VSOut
 	float3	Norm	: NORMAL;
 	float4	LSPos	: POSLIGHT;
 	float4	CSPos	: POSCURRENT;
-	float4	TSPos 	: POSHISTORY;
+	float4	TSPos	: POSHISTORY;
 };
 
 //--------------------------------------------------------------------------------------
