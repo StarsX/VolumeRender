@@ -11,11 +11,11 @@
 
 #pragma once
 
+#include "DXFramework.h"
 #include "StepTimer.h"
 #include "RayCaster.h"
 #include "LightProbe.h"
 #include "ObjectRenderer.h"
-#include "ParticleRenderer.h"
 
 using namespace DirectX;
 
@@ -50,7 +50,6 @@ public:
 private:
 	static const auto FrameCount = RayCaster::FrameCount;
 	static_assert(FrameCount == ObjectRenderer::FrameCount, "VolumeRender::FrameCount should be equal to ObjectRenderer::FrameCount");
-	static_assert(FrameCount == ParticleRenderer::FrameCount, "VolumeRender::FrameCount should be equal to ParticleRenderer::FrameCount");
 
 	XUSG::com_ptr<IDXGIFactory4> m_factory;
 
@@ -68,7 +67,6 @@ private:
 	std::unique_ptr<RayCaster>	m_rayCaster;
 	std::unique_ptr<LightProbe>	m_lightProbe;
 	std::unique_ptr<ObjectRenderer> m_objectRenderer;
-	std::unique_ptr<ParticleRenderer> m_particleRenderer;
 	XMFLOAT4X4	m_proj;
 	XMFLOAT4X4	m_view;
 	XMFLOAT3	m_focusPt;

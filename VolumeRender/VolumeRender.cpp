@@ -22,8 +22,6 @@ enum RenderMethod
 	RAY_MARCH_SEPARATE,
 	RAY_MARCH_DIRECT_MERGED,
 	RAY_MARCH_DIRECT_SEPARATE,
-	PARTICLE_OIT,
-	PARTICLE_SIMPLE,
 
 	NUM_RENDER_METHOD
 };
@@ -158,8 +156,6 @@ void VolumeRender::LoadAssets()
 
 	// Init assets
 	vector<Resource::uptr> uploaders(0);
-	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 70, 0);
-
 	if (!m_radianceFile.empty())
 	{
 		X_RETURN(m_lightProbe, make_unique<LightProbe>(m_device), ThrowIfFailed(E_FAIL));
@@ -181,13 +177,8 @@ void VolumeRender::LoadAssets()
 	m_rayCaster->SetLightMapWorld(volumeSize * 2.0f, volumePos);
 	m_rayCaster->SetMaxSamples(m_maxRaySamples, m_maxLightSamples);
 
-	X_RETURN(m_particleRenderer, make_unique<ParticleRenderer>(m_device), ThrowIfFailed(E_FAIL));
-	N_RETURN(m_particleRenderer->Init(m_width, m_height, m_descriptorTableCache,
-		g_rtFormat, g_dsFormat, m_numParticles, m_particleSize), ThrowIfFailed(E_FAIL));
-
 	if (m_volumeFile.empty()) m_rayCaster->InitVolumeData(pCommandList);
 	else m_rayCaster->LoadVolumeData(pCommandList, m_volumeFile.c_str(), uploaders);
-	m_particleRenderer->GenerateParticles(pCommandList, m_rayCaster->GetVolumeSRVTable(pCommandList));
 
 	// Close the command list and execute it to begin the initial GPU setup.
 	N_RETURN(pCommandList->Close(), ThrowIfFailed(E_FAIL));
@@ -261,7 +252,6 @@ void VolumeRender::CreateResources()
 	}
 	N_RETURN(m_objectRenderer->SetViewport(m_width, m_height, g_rtFormat, g_dsFormat, m_clearColor), ThrowIfFailed(E_FAIL));
 	N_RETURN(m_rayCaster->SetDepthMaps(m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
-	N_RETURN(m_particleRenderer->SetViewport(m_width, m_height), ThrowIfFailed(E_FAIL));
 
 	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
 	//m_viewport = Viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
@@ -308,7 +298,6 @@ void VolumeRender::OnUpdate()
 	if (m_lightProbe) m_lightProbe->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_objectRenderer->UpdateFrame(m_frameIndex, viewProj, m_eyePt);
 	m_rayCaster->UpdateFrame(m_frameIndex, viewProj, m_objectRenderer->GetShadowVP(), m_eyePt);
-	m_particleRenderer->UpdateFrame(m_frameIndex, view, proj, m_eyePt);
 }
 
 // Render the scene.
@@ -633,15 +622,8 @@ void VolumeRender::PopulateCommandList()
 	case RAY_MARCH_DIRECT_SEPARATE:
 		m_rayCaster->Render(pCommandList, m_frameIndex, RayCaster::SEPARATE_LIGHT_PASS);
 		break;
-	case PARTICLE_OIT:
-		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
-		m_particleRenderer->Render(pCommandList, m_frameIndex, m_rayCaster->GetLightMap(),
-			m_rayCaster->GetLightSRVTable(), m_renderTargets[m_frameIndex]->GetRTV(), pDepth->GetDSV());
-		break;
 	default:
-		m_rayCaster->RayMarchL(pCommandList, m_frameIndex);
-		m_particleRenderer->ShowParticles(pCommandList, m_frameIndex, m_rayCaster->GetLightMap(),
-			m_rayCaster->GetLightSRVTable());
+		assert(!"Cannot reach here!");
 	}
 	
 	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
@@ -733,11 +715,6 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 		case RAY_MARCH_DIRECT_SEPARATE:
 			windowText << L"Direct screen-space ray marching with separate lighting pass";
 			break;
-		case PARTICLE_OIT:
-			windowText << L"Particle rendering with weighted blended OIT";
-			break;
-		default:
-			windowText << L"Simple particle rendering";
 		}
 
 		SetCustomWindowText(windowText.str().c_str());

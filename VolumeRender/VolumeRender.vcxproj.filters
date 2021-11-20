@@ -34,9 +34,6 @@
     <Filter Include="Shaders\RayCaster">
       <UniqueIdentifier>{e93fac53-d72f-4ff0-ae80-96b9000555e1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Shaders\ParticleSys">
-      <UniqueIdentifier>{22f052d6-b879-4992-91ee-070a1e209bf8}</UniqueIdentifier>
-    </Filter>
     <Filter Include="XUSG\Advanced">
       <UniqueIdentifier>{e63d709e-f1e3-402f-aea8-146b9080366c}</UniqueIdentifier>
     </Filter>
@@ -76,9 +73,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Content\RayCaster.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Content\ParticleRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h">
@@ -122,9 +116,6 @@
     <ClCompile Include="Content\RayCaster.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Content\ParticleRenderer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Content\ObjectRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -141,9 +132,6 @@
     </None>
     <None Include="Content\Shaders\RayMarch.hlsli">
       <Filter>Shaders\RayCaster</Filter>
-    </None>
-    <None Include="Content\Shaders\WeightedAlpha.hlsli">
-      <Filter>Shaders\ParticleSys</Filter>
     </None>
     <None Include="Content\Shaders\Random.hlsli">
       <Filter>Shaders</Filter>
@@ -174,23 +162,8 @@
     <FxCompile Include="Content\Shaders\PSRayCastCube.hlsl">
       <Filter>Shaders\RayCaster</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\CSGenParticle.hlsl">
-      <Filter>Shaders\ParticleSys</Filter>
-    </FxCompile>
-    <FxCompile Include="Content\Shaders\VSParticle.hlsl">
-      <Filter>Shaders\ParticleSys</Filter>
-    </FxCompile>
-    <FxCompile Include="Content\Shaders\PSParticle.hlsl">
-      <Filter>Shaders\ParticleSys</Filter>
-    </FxCompile>
-    <FxCompile Include="Content\Shaders\PSWeightBlend.hlsl">
-      <Filter>Shaders\ParticleSys</Filter>
-    </FxCompile>
     <FxCompile Include="Content\Shaders\VSScreenQuad.hlsl">
       <Filter>Shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="Content\Shaders\PSResolveOIT.hlsl">
-      <Filter>Shaders\ParticleSys</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSRayCast.hlsl">
       <Filter>Shaders\RayCaster</Filter>
