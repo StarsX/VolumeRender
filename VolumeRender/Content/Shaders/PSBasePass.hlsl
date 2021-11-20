@@ -19,6 +19,14 @@ struct PSIn
 	float3	WSPos	: POSWORLD;
 	float3	Norm	: NORMAL;
 	float4	LSPos	: POSLIGHT;
+	float4	CSPos	: POSCURRENT;
+	float4	TSPos	: POSHISTORY;
+};
+
+struct PSOut
+{
+	min16float4 Color		: SV_TARGET0;
+	min16float4 Velocity	: SV_TARGET1;
 };
 
 //--------------------------------------------------------------------------------------
@@ -82,8 +90,10 @@ min16float3 Fresnel(min16float NoV, min16float3 specRef)
 //--------------------------------------------------------------------------------------
 // Pixel shader
 //--------------------------------------------------------------------------------------
-min16float4 main(PSIn input) : SV_TARGET
+PSOut main(PSIn input)
 {
+	PSOut output;
+
 	const float shadow = ShadowMap(input.LSPos.xyz);
 
 	const min16float3 N = min16float3(normalize(input.Norm));
@@ -92,6 +102,10 @@ min16float4 main(PSIn input) : SV_TARGET
 	const bool hasIrradiance = g_hasLightProbes & IRRADIANCE_BIT;
 	if (hasIrradiance) irradiance = EvaluateSHIrradiance(g_roSHCoeffs, N);
 #endif
+
+	const float2 csPos = input.CSPos.xy / input.CSPos.w;
+	const float2 tsPos = input.TSPos.xy / input.TSPos.w;
+	const min16float2 velocity = min16float2(csPos - tsPos) * min16float2(0.5, -0.5);
 
 	const min16float3 L = min16float3(normalize(g_lightPos));
 	const min16float NoL = saturate(dot(N, L));
@@ -131,5 +145,8 @@ min16float4 main(PSIn input) : SV_TARGET
 	result *= lightColor * min16float(shadow);
 	result += baseColor * ambient + min16float3(radiance);
 
-	return min16float4(result, 1.0);
+	output.Color = min16float4(result, 1.0);
+	output.Velocity = min16float4(velocity, 0.0.xx);
+
+	return output;
 }

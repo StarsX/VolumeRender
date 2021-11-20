@@ -32,7 +32,7 @@ const float g_FOVAngleY = XM_PIDIV4;
 
 RenderMethod g_renderMethod = RAY_MARCH_SEPARATE;
 const auto g_backFormat = Format::B8G8R8A8_UNORM;
-const auto g_rtFormat = Format::R11G11B10_FLOAT;
+const auto g_rtFormat = Format::R16G16B16A16_FLOAT;
 const auto g_dsFormat = Format::D32_FLOAT;
 
 VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
@@ -158,7 +158,7 @@ void VolumeRender::LoadAssets()
 
 	// Init assets
 	vector<Resource::uptr> uploaders(0);
-	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 60, 0);
+	m_descriptorTableCache->AllocateDescriptorPool(CBV_SRV_UAV_POOL, 70, 0);
 
 	if (!m_radianceFile.empty())
 	{
@@ -592,20 +592,23 @@ void VolumeRender::PopulateCommandList()
 
 	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex, m_showMesh);
 
-	ResourceBarrier barriers[3];
-	const auto pColor = m_objectRenderer->GetRenderTarget();
+	ResourceBarrier barriers[4];
+	const auto pColor = m_objectRenderer->GetRenderTarget(ObjectRenderer::RT_COLOR);
+	const auto pVelocity = m_objectRenderer->GetRenderTarget(ObjectRenderer::RT_VELOCITY);
 	const auto pDepth = m_objectRenderer->GetDepthMap(ObjectRenderer::DEPTH_MAP);
 	const auto pShadow = m_objectRenderer->GetDepthMap(ObjectRenderer::SHADOW_MAP);
 	auto numBarriers = pColor->SetBarrier(barriers, ResourceState::RENDER_TARGET);
+	numBarriers = pVelocity->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	//auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = pDepth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
 	numBarriers = pShadow->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target
+	const Descriptor pRTVs[] = { pColor->GetRTV(), pVelocity->GetRTV() };
 	pCommandList->ClearRenderTargetView(pColor->GetRTV(), m_clearColor);
 	pCommandList->ClearDepthStencilView(pDepth->GetDSV(), ClearFlag::DEPTH, 1.0f);
-	pCommandList->OMSetRenderTargets(1, &pColor->GetRTV(), &pDepth->GetDSV());
+	pCommandList->OMSetRenderTargets(static_cast<uint32_t>(size(pRTVs)), pRTVs, &pDepth->GetDSV());
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_width), static_cast<float>(m_height));
@@ -646,7 +649,7 @@ void VolumeRender::PopulateCommandList()
 	pCommandList->Barrier(numBarriers, barriers);
 	pCommandList->OMSetRenderTargets(1, &m_renderTargets[m_frameIndex]->GetRTV());
 
-	m_objectRenderer->ToneMap(pCommandList);
+	m_objectRenderer->Postprocess(pCommandList);
 
 	// Indicate that the back buffer will now be used to present.
 	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::PRESENT);

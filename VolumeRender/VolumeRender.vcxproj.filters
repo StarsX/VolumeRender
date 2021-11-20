@@ -234,5 +234,8 @@
     <FxCompile Include="Content\Shaders\CSSHSum.hlsl">
       <Filter>Shaders\SHMath</Filter>
     </FxCompile>
+    <FxCompile Include="Content\Shaders\CSTemporalAA.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
