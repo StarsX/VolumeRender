@@ -12,8 +12,8 @@ Hot keys:
 
 [M] show/hide mesh
 
-[←][→] toggle rendering method  
+[←][→] toggle ray-marching methods
 
 [Space] pause/play animation
 
-Prerequisite: https://github.com/StarsX/XUSGCore
+Prerequisite: https://github.com/StarsX/XUSG
