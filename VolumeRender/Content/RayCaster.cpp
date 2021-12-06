@@ -414,7 +414,7 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 	}
 }
 
-void RayCaster::Render(const CommandList* pCommandList, uint8_t frameIndex, uint8_t flags)
+void RayCaster::Render(CommandList* pCommandList, uint8_t frameIndex, uint8_t flags)
 {
 	const bool cubemapRayMarch = flags & RAY_MARCH_CUBEMAP;
 	const bool separateLightPass = flags & SEPARATE_LIGHT_PASS;
@@ -465,7 +465,7 @@ void RayCaster::RayMarchL(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Dispatch(DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4), DIV_UP(m_lightGridSize, 4));
 }
 
-const DescriptorTable& RayCaster::GetVolumeSRVTable(const CommandList* pCommandList)
+const DescriptorTable& RayCaster::GetVolumeSRVTable(CommandList* pCommandList)
 {
 	// Set barrier
 	ResourceBarrier barrier;
@@ -847,7 +847,7 @@ bool RayCaster::createDescriptorTables()
 	return true;
 }
 
-void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::rayMarch(CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barriers[13];
@@ -885,7 +885,7 @@ void RayCaster::rayMarch(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_cubeFaceCount);
 }
 
-void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::rayMarchV(CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barriers[14];
@@ -921,7 +921,7 @@ void RayCaster::rayMarchV(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Dispatch(DIV_UP(gridSize, 8), DIV_UP(gridSize, 8), m_cubeFaceCount);
 }
 
-void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::renderCube(CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barriers[12];
@@ -949,7 +949,7 @@ void RayCaster::renderCube(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Draw(4, 6, 0, 0);
 }
 
-void RayCaster::rayCastCube(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::rayCastCube(CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barriers[12];
@@ -976,7 +976,7 @@ void RayCaster::rayCastCube(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
-void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::rayCastDirect(CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barrier;
@@ -1002,7 +1002,7 @@ void RayCaster::rayCastDirect(const CommandList* pCommandList, uint8_t frameInde
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
-void RayCaster::rayCastVDirect(const CommandList* pCommandList, uint8_t frameIndex)
+void RayCaster::rayCastVDirect(CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set barriers
 	ResourceBarrier barriers[2];

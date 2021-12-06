@@ -42,11 +42,11 @@ public:
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void SetSH(const XUSG::StructuredBuffer::sptr& coeffSH);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
-	void RenderShadow(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
+	void RenderShadow(XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
-	void Postprocess(const XUSG::CommandList* pCommandList);
-	void TemporalAA(const XUSG::CommandList* pCommandList);
-	void ToneMap(const XUSG::CommandList* pCommandList);
+	void Postprocess(XUSG::CommandList* pCommandList);
+	void TemporalAA(XUSG::CommandList* pCommandList);
+	void ToneMap(XUSG::CommandList* pCommandList);
 
 	XUSG::RenderTarget* GetRenderTarget(RenderTargetIndex index) const;
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;

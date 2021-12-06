@@ -264,7 +264,7 @@ void ObjectRenderer::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const X
 	m_frameParity = !m_frameParity;
 }
 
-void ObjectRenderer::RenderShadow(const CommandList* pCommandList, uint8_t frameIndex, bool drawScene)
+void ObjectRenderer::RenderShadow(CommandList* pCommandList, uint8_t frameIndex, bool drawScene)
 {
 	// Set barrier
 	ResourceBarrier barrier;
@@ -294,13 +294,13 @@ void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex,
 	if (drawScene) render(pCommandList, frameIndex);
 }
 
-void ObjectRenderer::Postprocess(const CommandList* pCommandList)
+void ObjectRenderer::Postprocess(CommandList* pCommandList)
 {
 	TemporalAA(pCommandList);
 	ToneMap(pCommandList);
 }
 
-void ObjectRenderer::TemporalAA(const CommandList* pCommandList)
+void ObjectRenderer::TemporalAA(CommandList* pCommandList)
 {
 	ResourceBarrier barriers[4];
 	auto numBarriers = m_temporalViews[m_frameParity]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
@@ -324,7 +324,7 @@ void ObjectRenderer::TemporalAA(const CommandList* pCommandList)
 	pCommandList->Dispatch(DIV_UP(m_viewport.x, 8), DIV_UP(m_viewport.y, 8), 1);
 }
 
-void ObjectRenderer::ToneMap(const CommandList* pCommandList)
+void ObjectRenderer::ToneMap(CommandList* pCommandList)
 {
 	ResourceBarrier barrier;
 	const auto numBarriers = m_temporalViews[m_frameParity]->SetBarrier(

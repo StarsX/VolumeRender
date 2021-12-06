@@ -33,10 +33,10 @@ public:
 	void SetLight(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& color, float intensity);
 	void SetAmbient(const DirectX::XMFLOAT3& color, float intensity);
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT4X4& shadowVP, const DirectX::XMFLOAT3& eyePt);
-	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, uint8_t flags = OPTIMIZED);
+	void Render(XUSG::CommandList* pCommandList, uint8_t frameIndex, uint8_t flags = OPTIMIZED);
 	void RayMarchL(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
-	const XUSG::DescriptorTable& GetVolumeSRVTable(const XUSG::CommandList* pCommandList);
+	const XUSG::DescriptorTable& GetVolumeSRVTable(XUSG::CommandList* pCommandList);
 	const XUSG::DescriptorTable& GetLightSRVTable() const;
 	XUSG::Resource* GetLightMap() const;
 
@@ -79,12 +79,12 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
-	void rayMarch(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void rayMarchV(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void renderCube(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void rayCastCube(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void rayCastDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void rayCastVDirect(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayMarch(XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayMarchV(XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void renderCube(XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastCube(XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastDirect(XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void rayCastVDirect(XUSG::CommandList* pCommandList, uint8_t frameIndex);
 
 	XUSG::Device::sptr m_device;
 
