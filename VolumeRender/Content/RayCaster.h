@@ -105,10 +105,10 @@ protected:
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
-	XUSG::ShaderResource::sptr	m_fileSrc;
+	XUSG::Texture::sptr			m_fileSrc;
 	XUSG::Texture3D::uptr		m_volume;
-	XUSG::Texture2D::uptr		m_cubeMap;
-	XUSG::Texture2D::uptr		m_cubeDepth;
+	XUSG::Texture::uptr			m_cubeMap;
+	XUSG::Texture::uptr			m_cubeDepth;
 	XUSG::Texture3D::uptr		m_lightMap;
 	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 	XUSG::ConstantBuffer::uptr	m_cbPerObject;
