@@ -2,7 +2,7 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#pragma once
+#pragma oncd
 
 #include "Core/XUSG.h"
 

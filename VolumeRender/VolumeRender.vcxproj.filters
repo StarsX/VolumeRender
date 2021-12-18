@@ -96,6 +96,9 @@
     <ClInclude Include="Content\LightProbe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Content\SHSharedConsts.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Common\DXFramework.cpp">

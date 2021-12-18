@@ -178,6 +178,7 @@ COPY /Y "$(ProjectDir)XUSG\Bin\$(Platform)\$(Configuration)\*.dll" "$(ProjectDir
     <ClInclude Include="Content\ObjectRenderer.h" />
     <ClInclude Include="Content\RayCaster.h" />
     <ClInclude Include="Content\SharedConsts.h" />
+    <ClInclude Include="Content\SHSharedConsts.h" />
     <ClInclude Include="VolumeRender.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h" />
