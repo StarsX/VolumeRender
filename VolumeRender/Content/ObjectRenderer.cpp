@@ -493,7 +493,9 @@ bool ObjectRenderer::createPipelines(Format backFormat, Format rtFormat, Format 
 		state->IASetInputLayout(m_pInputLayout);
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		//state->DSSetState(Graphics::DepthStencilPreset::DEFAULT_LESS, m_graphicsPipelineCache.get());
-		state->OMSetRTVFormats(&rtFormat, 1);
+		state->OMSetNumRenderTargets(2);
+		state->OMSetRTVFormat(0, rtFormat);
+		state->OMSetRTVFormat(1, Format::R16G16_FLOAT);
 		state->OMSetDSVFormat(dsFormat);
 		X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
 	}

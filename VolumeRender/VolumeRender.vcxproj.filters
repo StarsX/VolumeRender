@@ -130,7 +130,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Content\Shaders\RayCast.hlsli">
+    <None Include="Content\Shaders\Common.hlsli">
       <Filter>Shaders\RayCaster</Filter>
     </None>
     <None Include="Content\Shaders\RayMarch.hlsli">
