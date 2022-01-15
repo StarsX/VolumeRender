@@ -32,8 +32,7 @@ struct CBPerFrame
 	XMFLOAT4 Ambient;
 };
 
-ObjectRenderer::ObjectRenderer(const Device::sptr& device) :
-	m_device(device),
+ObjectRenderer::ObjectRenderer() :
 	m_srvTables(),
 	m_coeffSH(nullptr),
 	m_frameParity(0),
@@ -43,9 +42,6 @@ ObjectRenderer::ObjectRenderer(const Device::sptr& device) :
 	m_ambient(0.0f, 0.3f, 1.0f, 0.4f)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
-	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device.get());
-	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device.get());
-	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device.get());
 }
 
 ObjectRenderer::~ObjectRenderer()
@@ -56,7 +52,12 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
 	const char* fileName, Format backFormat, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
 {
+	const auto pDevice = pCommandList->GetDevice();
+	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(pDevice);
+	m_computePipelineCache = Compute::PipelineCache::MakeUnique(pDevice);
+	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(pDevice);
 	m_descriptorTableCache = descriptorTableCache;
+
 	SetWorld(posScale.w, XMFLOAT3(posScale.x, posScale.y, posScale.z));
 
 	// Load inputs
@@ -69,19 +70,19 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	// Create resources
 	const auto smFormat = Format::D16_UNORM;
 	m_depths[SHADOW_MAP] = DepthStencil::MakeUnique();
-	N_RETURN(m_depths[SHADOW_MAP]->Create(m_device.get(), m_shadowMapSize, m_shadowMapSize,
+	N_RETURN(m_depths[SHADOW_MAP]->Create(pDevice, m_shadowMapSize, m_shadowMapSize,
 		smFormat, ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, MemoryFlag::NONE, L"Shadow"), false);
 
 	m_cbShadow = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbShadow->Create(m_device.get(), sizeof(XMFLOAT4X4[FrameCount]), FrameCount,
+	N_RETURN(m_cbShadow->Create(pDevice, sizeof(XMFLOAT4X4[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBshadow"), false);
 
 	m_cbPerObject = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerObject->Create(m_device.get(), sizeof(CBPerObject[FrameCount]), FrameCount,
+	N_RETURN(m_cbPerObject->Create(pDevice, sizeof(CBPerObject[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBPerObject"), false);
 
 	m_cbPerFrame = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
+	N_RETURN(m_cbPerFrame->Create(pDevice, sizeof(CBPerFrame[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"ObjectRenderer.CBPerFrame"), false);
 
 	// Create window size-dependent resource
@@ -95,17 +96,17 @@ bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t he
 	return true;
 }
 
-bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format rtFormat,
-	Format dsFormat, const float* clearColor)
+bool ObjectRenderer::SetViewport(const Device* pDevice, uint32_t width, uint32_t height,
+	Format rtFormat, Format dsFormat, const float* clearColor)
 {
 	m_viewport = XMUINT2(width, height);
 
 	// Recreate window size-dependent resource
 	for (auto& renderTarget : m_renderTargets) renderTarget = RenderTarget::MakeUnique();
-	N_RETURN(m_renderTargets[RT_COLOR]->Create(m_device.get(), width, height, rtFormat, 1,
+	N_RETURN(m_renderTargets[RT_COLOR]->Create(pDevice, width, height, rtFormat, 1,
 		ResourceFlag::NONE, 1, 1, clearColor, false, MemoryFlag::NONE,
 		L"RenderTarget"), false);
-	m_renderTargets[RT_VELOCITY]->Create(m_device.get(), width, height, Format::R16G16_FLOAT,
+	m_renderTargets[RT_VELOCITY]->Create(pDevice, width, height, Format::R16G16_FLOAT,
 		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Velocity");
 
 	// Temporal AA
@@ -113,13 +114,13 @@ bool ObjectRenderer::SetViewport(uint32_t width, uint32_t height, Format rtForma
 	{
 		auto& temporalView = m_temporalViews[i];
 		temporalView = Texture2D::MakeUnique();
-		N_RETURN(temporalView->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
+		N_RETURN(temporalView->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT, 1,
 			ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE,
 			(L"TemporalView" + to_wstring(i)).c_str()), false);
 	}
 
 	m_depths[DEPTH_MAP] = DepthStencil::MakeUnique();
-	N_RETURN(m_depths[DEPTH_MAP]->Create(m_device.get(), width, height, dsFormat,
+	N_RETURN(m_depths[DEPTH_MAP]->Create(pDevice, width, height, dsFormat,
 		ResourceFlag::NONE, 1, 1, 1, 1.0f, 0, false, MemoryFlag::NONE, L"Depth"), false);
 
 	return createDescriptorTables();
@@ -369,7 +370,7 @@ bool ObjectRenderer::createVB(CommandList* pCommandList, uint32_t numVert,
 	uint32_t stride, const uint8_t* pData, vector<Resource::uptr>& uploaders)
 {
 	m_vertexBuffer = VertexBuffer::MakeUnique();
-	N_RETURN(m_vertexBuffer->Create(m_device.get(), numVert, stride, ResourceFlag::NONE,
+	N_RETURN(m_vertexBuffer->Create(pCommandList->GetDevice(), numVert, stride, ResourceFlag::NONE,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, MemoryFlag::NONE, L"MeshVB"), false);
 	uploaders.emplace_back(Resource::MakeUnique());
 
@@ -383,7 +384,7 @@ bool ObjectRenderer::createIB(CommandList* pCommandList, uint32_t numIndices,
 
 	const uint32_t byteWidth = sizeof(uint32_t) * numIndices;
 	m_indexBuffer = IndexBuffer::MakeUnique();
-	N_RETURN(m_indexBuffer->Create(m_device.get(), byteWidth, Format::R32_UINT, ResourceFlag::NONE,
+	N_RETURN(m_indexBuffer->Create(pCommandList->GetDevice(), byteWidth, Format::R32_UINT, ResourceFlag::NONE,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, MemoryFlag::NONE, L"MeshIB"), false);
 	uploaders.emplace_back(Resource::MakeUnique());
 

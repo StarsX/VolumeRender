@@ -17,11 +17,11 @@ public:
 		OPTIMIZED = RAY_MARCH_CUBEMAP | SEPARATE_LIGHT_PASS
 	};
 
-	RayCaster(const XUSG::Device::sptr& device);
+	RayCaster();
 	virtual ~RayCaster();
 
-	bool Init(const XUSG::DescriptorTableCache::sptr& descriptorTableCache, XUSG::Format rtFormat,
-		uint32_t gridSize, uint32_t lightGridSize, const XUSG::DepthStencil::uptr* depths);
+	bool Init(const XUSG::Device* pDevice, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
+		XUSG::Format rtFormat, uint32_t gridSize, uint32_t lightGridSize, const XUSG::DepthStencil::uptr* depths);
 	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
 	bool SetDepthMaps(const XUSG::DepthStencil::uptr* depths);
 

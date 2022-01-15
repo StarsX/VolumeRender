@@ -107,7 +107,7 @@ void VolumeRender::LoadPipeline()
 		dxgiAdapter = nullptr;
 		ThrowIfFailed(m_factory->EnumAdapters1(i, &dxgiAdapter));
 
-		m_device = Device::MakeShared();
+		m_device = Device::MakeUnique();
 		hr = m_device->Create(dxgiAdapter.get(), D3D_FEATURE_LEVEL_11_0);
 	}
 
@@ -158,18 +158,18 @@ void VolumeRender::LoadAssets()
 	vector<Resource::uptr> uploaders(0);
 	if (!m_radianceFile.empty())
 	{
-		X_RETURN(m_lightProbe, make_unique<LightProbe>(m_device), ThrowIfFailed(E_FAIL));
+		X_RETURN(m_lightProbe, make_unique<LightProbe>(), ThrowIfFailed(E_FAIL));
 		N_RETURN(m_lightProbe->Init(pCommandList, m_descriptorTableCache, uploaders,
 			m_radianceFile.c_str(), g_rtFormat, g_dsFormat), ThrowIfFailed(E_FAIL));
 	}
 
-	X_RETURN(m_objectRenderer, make_unique<ObjectRenderer>(m_device), ThrowIfFailed(E_FAIL));
+	X_RETURN(m_objectRenderer, make_unique<ObjectRenderer>(), ThrowIfFailed(E_FAIL));
 	N_RETURN(m_objectRenderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
 		uploaders, m_meshFileName.c_str(), g_backFormat, g_rtFormat, g_dsFormat, m_meshPosScale),
 		ThrowIfFailed(E_FAIL));
 
-	X_RETURN(m_rayCaster, make_unique<RayCaster>(m_device), ThrowIfFailed(E_FAIL));
-	N_RETURN(m_rayCaster->Init(m_descriptorTableCache, g_rtFormat, m_gridSize,
+	X_RETURN(m_rayCaster, make_unique<RayCaster>(), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_rayCaster->Init(m_device.get(), m_descriptorTableCache, g_rtFormat, m_gridSize,
 		m_lightGridSize, m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
 	const auto volumeSize = m_volPosScale.w * 2.0f;
 	const auto volumePos = XMFLOAT3(m_volPosScale.x, m_volPosScale.y, m_volPosScale.z);
@@ -250,7 +250,7 @@ void VolumeRender::CreateResources()
 		N_RETURN(m_lightProbe->CreateDescriptorTables(), ThrowIfFailed(E_FAIL));
 		N_RETURN(m_objectRenderer->SetRadiance(m_lightProbe->GetRadiance()->GetSRV()), ThrowIfFailed(E_FAIL));
 	}
-	N_RETURN(m_objectRenderer->SetViewport(m_width, m_height, g_rtFormat, g_dsFormat, m_clearColor), ThrowIfFailed(E_FAIL));
+	N_RETURN(m_objectRenderer->SetViewport(m_device.get(), m_width, m_height, g_rtFormat, g_dsFormat, m_clearColor), ThrowIfFailed(E_FAIL));
 	N_RETURN(m_rayCaster->SetDepthMaps(m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
 
 	// Set the 3D rendering viewport and scissor rectangle to target the entire window.

@@ -25,7 +25,7 @@ public:
 		NUM_DEPTH
 	};
 
-	ObjectRenderer(const XUSG::Device::sptr& device);
+	ObjectRenderer();
 	virtual ~ObjectRenderer();
 
 	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
@@ -33,7 +33,7 @@ public:
 		std::vector<XUSG::Resource::uptr>& uploaders, const char* meshFileName,
 		XUSG::Format backFormat, XUSG::Format rtFormat, XUSG::Format dsFormat,
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
-	bool SetViewport(uint32_t width, uint32_t height, XUSG::Format rtFormat,
+	bool SetViewport(const XUSG::Device* pDevice, uint32_t width, uint32_t height, XUSG::Format rtFormat,
 		XUSG::Format dsFormat, const float* clearColor);
 	bool SetRadiance(const XUSG::Descriptor& radiance);
 
@@ -106,8 +106,6 @@ protected:
 
 	void render(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void renderDepth(const XUSG::CommandList* pCommandList, uint8_t frameIndex, const XUSG::ConstantBuffer* pCb);
-
-	XUSG::Device::sptr m_device;
 
 	XUSG::ShaderPool::uptr				m_shaderPool;
 	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
