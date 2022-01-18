@@ -594,8 +594,10 @@ void VolumeRender::PopulateCommandList()
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Clear render target
+	const float clear[4] = {};
 	const Descriptor pRTVs[] = { pColor->GetRTV(), pVelocity->GetRTV() };
 	pCommandList->ClearRenderTargetView(pColor->GetRTV(), m_clearColor);
+	pCommandList->ClearRenderTargetView(pVelocity->GetRTV(), clear);
 	pCommandList->ClearDepthStencilView(pDepth->GetDSV(), ClearFlag::DEPTH, 1.0f);
 	pCommandList->OMSetRenderTargets(static_cast<uint32_t>(size(pRTVs)), pRTVs, &pDepth->GetDSV());
 
