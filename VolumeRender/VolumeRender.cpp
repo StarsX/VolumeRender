@@ -149,10 +149,11 @@ void VolumeRender::LoadAssets()
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
 	// Clear color setting
-	m_clearColor = { 0.2f, 0.2f, 0.2f, 0.2f };
+	m_clearColor = { 0.2f, 0.2f, 0.2f, 0.0f };
 	m_clearColor = m_volumeFile.empty() ? m_clearColor : DirectX::Colors::CornflowerBlue;
 	m_clearColor.v = XMVectorPow(m_clearColor, XMVectorReplicate(1.0f / 1.25f));
 	m_clearColor.v = 0.7f * m_clearColor / (XMVectorReplicate(1.25f) - m_clearColor);
+	m_clearColor.f[3] = 0.0f;
 
 	// Init assets
 	vector<Resource::uptr> uploaders(0);
@@ -593,7 +594,7 @@ void VolumeRender::PopulateCommandList()
 	numBarriers = pShadow->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
-	// Clear render target
+	// Clear render targets
 	const float clear[4] = {};
 	const Descriptor pRTVs[] = { pColor->GetRTV(), pVelocity->GetRTV() };
 	pCommandList->ClearRenderTargetView(pColor->GetRTV(), m_clearColor);
