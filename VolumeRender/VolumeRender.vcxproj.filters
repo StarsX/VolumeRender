@@ -28,14 +28,8 @@
     <Filter Include="Shaders">
       <UniqueIdentifier>{c6cbf730-3a04-4e8f-9fa2-94d7d2145f9b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="XUSG\Core">
-      <UniqueIdentifier>{93b2fd6a-d8de-4bdf-8acb-1cb7bf5288de}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Shaders\RayCaster">
       <UniqueIdentifier>{e93fac53-d72f-4ff0-ae80-96b9000555e1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="XUSG\Advanced">
-      <UniqueIdentifier>{e63d709e-f1e3-402f-aea8-146b9080366c}</UniqueIdentifier>
     </Filter>
     <Filter Include="XUSG\Optional">
       <UniqueIdentifier>{f0f25b24-b3cf-41e6-b367-1cab524f2301}</UniqueIdentifier>
@@ -75,12 +69,6 @@
     <ClInclude Include="Content\RayCaster.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h">
-      <Filter>XUSG\Advanced</Filter>
-    </ClInclude>
-    <ClInclude Include="XUSG\Core\XUSG.h">
-      <Filter>XUSG\Core</Filter>
-    </ClInclude>
     <ClInclude Include="Common\d3d12.h">
       <Filter>Common\Header Files</Filter>
     </ClInclude>
@@ -98,6 +86,15 @@
     </ClInclude>
     <ClInclude Include="Content\SHSharedConsts.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="XUSG\Core\XUSG.h">
+      <Filter>XUSG</Filter>
+    </ClInclude>
+    <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h">
+      <Filter>XUSG</Filter>
+    </ClInclude>
+    <ClInclude Include="XUSG\Advanced\XUSGHalton.h">
+      <Filter>XUSG</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
