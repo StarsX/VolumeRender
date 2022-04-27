@@ -248,7 +248,7 @@ void VolumeRender::CreateResources()
 
 	if (m_lightProbe)
 	{
-		XUSG_N_RETURN(m_lightProbe->CreateDescriptorTables(), ThrowIfFailed(E_FAIL));
+		XUSG_N_RETURN(m_lightProbe->CreateDescriptorTables(m_device.get()), ThrowIfFailed(E_FAIL));
 		XUSG_N_RETURN(m_objectRenderer->SetRadiance(m_lightProbe->GetRadiance()->GetSRV()), ThrowIfFailed(E_FAIL));
 	}
 	XUSG_N_RETURN(m_objectRenderer->SetViewport(m_device.get(), m_width, m_height, g_rtFormat, g_dsFormat, m_clearColor), ThrowIfFailed(E_FAIL));
@@ -561,24 +561,24 @@ void VolumeRender::PopulateCommandList()
 	XUSG_N_RETURN(pCommandList->Reset(pCommandAllocator, nullptr), ThrowIfFailed(E_FAIL));
 
 	// Record commands.
+	if (m_lightProbe)
+	{
+		static auto isFirstFrame = true;
+		if (isFirstFrame)
+		{
+			m_lightProbe->TransformSH(pCommandList);
+			m_objectRenderer->SetSH(m_lightProbe->GetSH());
+			m_rayCaster->SetSH(m_lightProbe->GetSH());
+			isFirstFrame = false;
+		}
+	}
+
 	const DescriptorPool descriptorPools[] =
 	{
 		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
 		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
 	};
 	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
-
-	if (m_lightProbe)
-	{
-		static auto isFirstFrame = true;
-		if (isFirstFrame)
-		{
-			m_lightProbe->Process(pCommandList, m_frameIndex);
-			m_objectRenderer->SetSH(m_lightProbe->GetSH());
-			m_rayCaster->SetSH(m_lightProbe->GetSH());
-			isFirstFrame = false;
-		}
-	}
 
 	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex, m_showMesh);
 
