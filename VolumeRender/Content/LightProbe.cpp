@@ -2,8 +2,8 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#include "SHSharedConsts.h"
 #include "LightProbe.h"
+#include "Advanced/XUSGSHSharedConsts.h"
 #define _INDEPENDENT_DDS_LOADER_
 #include "Advanced/XUSGDDSLoader.h"
 #undef _INDEPENDENT_DDS_LOADER_
@@ -81,18 +81,6 @@ void LightProbe::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLO
 void LightProbe::TransformSH(CommandList* pCommandList)
 {
 	m_sphericalHarmonics->Transform(pCommandList, m_radiance.get(), m_srvTable);
-	// Set Descriptor pools
-	const DescriptorPool descriptorPools[] =
-	{
-		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
-		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
-	};
-	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
-
-	//const uint8_t order = 3;
-	//shCubeMap(pCommandList, order);
-	//shSum(pCommandList, order);
-	//shNormalize(pCommandList, order);
 }
 
 void LightProbe::RenderEnvironment(const CommandList* pCommandList, uint8_t frameIndex)

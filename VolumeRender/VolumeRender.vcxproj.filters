@@ -84,9 +84,6 @@
     <ClInclude Include="Content\LightProbe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Content\SHSharedConsts.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="XUSG\Core\XUSG.h">
       <Filter>XUSG</Filter>
     </ClInclude>
@@ -97,6 +94,9 @@
       <Filter>XUSG</Filter>
     </ClInclude>
     <ClInclude Include="XUSG\Advanced\XUSGSphericalHarmonics.h">
+      <Filter>XUSG</Filter>
+    </ClInclude>
+    <ClInclude Include="XUSG\Advanced\XUSGSHSharedConsts.h">
       <Filter>XUSG</Filter>
     </ClInclude>
   </ItemGroup>
