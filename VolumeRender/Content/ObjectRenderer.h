@@ -28,8 +28,7 @@ public:
 	ObjectRenderer();
 	virtual ~ObjectRenderer();
 
-	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
-		const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
+	bool Init(XUSG::CommandList* pCommandList, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
 		std::vector<XUSG::Resource::uptr>& uploaders, const char* meshFileName,
 		XUSG::Format backFormat, XUSG::Format rtFormat, XUSG::Format dsFormat,
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));

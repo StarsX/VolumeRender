@@ -51,9 +51,9 @@ ObjectRenderer::~ObjectRenderer()
 {
 }
 
-bool ObjectRenderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
-	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
-	const char* fileName, Format backFormat, Format rtFormat, Format dsFormat, const XMFLOAT4& posScale)
+bool ObjectRenderer::Init(CommandList* pCommandList, const DescriptorTableCache::sptr& descriptorTableCache,
+	vector<Resource::uptr>& uploaders, const char* fileName, Format backFormat, Format rtFormat,
+	Format dsFormat, const XMFLOAT4& posScale)
 {
 	const auto pDevice = pCommandList->GetDevice();
 	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(pDevice);
