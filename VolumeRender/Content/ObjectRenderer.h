@@ -33,7 +33,7 @@ public:
 		XUSG::Format backFormat, XUSG::Format rtFormat, XUSG::Format dsFormat,
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
 	bool SetViewport(const XUSG::Device* pDevice, uint32_t width, uint32_t height, XUSG::Format rtFormat,
-		XUSG::Format dsFormat, const float* clearColor);
+		XUSG::Format dsFormat, const float* clearColor, bool needUavRT = false);
 	bool SetRadiance(const XUSG::Descriptor& radiance);
 
 	void SetWorld(float scale, const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3* pPitchYawRoll = nullptr);

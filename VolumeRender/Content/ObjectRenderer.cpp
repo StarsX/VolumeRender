@@ -100,15 +100,15 @@ bool ObjectRenderer::Init(CommandList* pCommandList, const DescriptorTableCache:
 }
 
 bool ObjectRenderer::SetViewport(const Device* pDevice, uint32_t width, uint32_t height,
-	Format rtFormat, Format dsFormat, const float* clearColor)
+	Format rtFormat, Format dsFormat, const float* clearColor, bool needUavRT)
 {
 	m_viewport = XMUINT2(width, height);
 
 	// Recreate window size-dependent resource
 	for (auto& renderTarget : m_renderTargets) renderTarget = RenderTarget::MakeUnique();
 	XUSG_N_RETURN(m_renderTargets[RT_COLOR]->Create(pDevice, width, height, rtFormat, 1,
-		ResourceFlag::NONE, 1, 1, clearColor, false, MemoryFlag::NONE,
-		L"RenderTarget"), false);
+		needUavRT ? ResourceFlag::ALLOW_UNORDERED_ACCESS : ResourceFlag::NONE, 1, 1, clearColor,
+		false, MemoryFlag::NONE, L"RenderTarget"), false);
 	m_renderTargets[RT_VELOCITY]->Create(pDevice, width, height, Format::R16G16_FLOAT,
 		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Velocity");
 
