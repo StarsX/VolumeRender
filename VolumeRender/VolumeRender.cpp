@@ -690,7 +690,7 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 		if (m_showFPS) windowText << setprecision(2) << fixed << fps;
 		else windowText << L"[F1]";
 
-		windowText << L"    [A] Play/stop rotation animation";
+		windowText << L"    [A] " << (m_animate ? "Auto-animation" : "Interaction");
 		windowText << L"    [M] Show/hide mesh";
 		windowText << L"    [\x2190][\x2192] ";
 		switch (g_renderMethod)
