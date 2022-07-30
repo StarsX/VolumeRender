@@ -241,10 +241,10 @@ void ObjectRenderer::Render(const CommandList* pCommandList, uint8_t frameIndex,
 	if (drawScene) render(pCommandList, frameIndex);
 }
 
-void ObjectRenderer::Postprocess(CommandList* pCommandList)
+void ObjectRenderer::Postprocess(CommandList* pCommandList, RenderTarget* pColorOut)
 {
 	TemporalAA(pCommandList);
-	ToneMap(pCommandList);
+	ToneMap(pCommandList, pColorOut);
 }
 
 void ObjectRenderer::TemporalAA(CommandList* pCommandList)
@@ -271,13 +271,17 @@ void ObjectRenderer::TemporalAA(CommandList* pCommandList)
 	pCommandList->Dispatch(XUSG_DIV_UP(m_viewport.x, 8), XUSG_DIV_UP(m_viewport.y, 8), 1);
 }
 
-void ObjectRenderer::ToneMap(CommandList* pCommandList)
+void ObjectRenderer::ToneMap(CommandList* pCommandList, RenderTarget* pColorOut)
 {
-	ResourceBarrier barrier;
-	const auto numBarriers = m_temporalViews[m_frameParity]->SetBarrier(
-		&barrier, ResourceState::NON_PIXEL_SHADER_RESOURCE |
-		ResourceState::PIXEL_SHADER_RESOURCE);
-	pCommandList->Barrier(numBarriers, &barrier);
+	ResourceBarrier barriers[2];
+	auto numBarriers = pColorOut->SetBarrier(barriers, ResourceState::RENDER_TARGET);
+	numBarriers = m_temporalViews[m_frameParity]->SetBarrier(
+		barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
+	pCommandList->Barrier(numBarriers, barriers);
+
+	// Set render target
+	pCommandList->OMSetRenderTargets(1, &pColorOut->GetRTV());
 
 	// Set pipeline state
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[TONE_MAP]);

@@ -43,9 +43,9 @@ public:
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMMATRIX viewProj, const DirectX::XMFLOAT3& eyePt);
 	void RenderShadow(XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
 	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, bool drawScene = true);
-	void Postprocess(XUSG::CommandList* pCommandList);
+	void Postprocess(XUSG::CommandList* pCommandList, XUSG::RenderTarget* pColorOut);
 	void TemporalAA(XUSG::CommandList* pCommandList);
-	void ToneMap(XUSG::CommandList* pCommandList);
+	void ToneMap(XUSG::CommandList* pCommandList, XUSG::RenderTarget* pColorOut);
 
 	XUSG::RenderTarget* GetRenderTarget(RenderTargetIndex index) const;
 	XUSG::DepthStencil* GetDepthMap(DepthIndex index) const;
@@ -130,17 +130,17 @@ protected:
 	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 	XUSG::StructuredBuffer::sptr m_coeffSH;
 
-	uint8_t					m_frameParity;
-	uint32_t				m_numIndices;
-	uint32_t				m_shadowMapSize;
-	DirectX::XMUINT2		m_viewport;
+	uint8_t				m_frameParity;
+	uint32_t			m_numIndices;
+	uint32_t			m_shadowMapSize;
+	DirectX::XMUINT2	m_viewport;
 
-	DirectX::XMFLOAT3		m_lightPt;
-	DirectX::XMFLOAT4		m_lightColor;
-	DirectX::XMFLOAT4		m_ambient;
-	DirectX::XMFLOAT4X4		m_worldViewProj;
-	DirectX::XMFLOAT3X4		m_world;
-	DirectX::XMFLOAT4X4		m_shadowVP;
+	DirectX::XMFLOAT3	m_lightPt;
+	DirectX::XMFLOAT4	m_lightColor;
+	DirectX::XMFLOAT4	m_ambient;
+	DirectX::XMFLOAT4X4	m_worldViewProj;
+	DirectX::XMFLOAT3X4	m_world;
+	DirectX::XMFLOAT4X4	m_shadowVP;
 
-	float					m_sceneSize;
+	float				m_sceneSize;
 };

@@ -42,7 +42,7 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_isPaused(false),
 	m_tracking(false),
 	m_gridSize(128),
-	m_lightGridSize(128),
+	m_lightGridSize(192),
 	m_maxRaySamples(256),
 	m_maxLightSamples(64),
 	m_numParticles(1 << 14),
@@ -584,7 +584,6 @@ void VolumeRender::PopulateCommandList()
 	const auto pShadow = m_objectRenderer->GetDepthMap(ObjectRenderer::SHADOW_MAP);
 	auto numBarriers = pColor->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = pVelocity->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
-	//auto numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
 	numBarriers = pDepth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
 	numBarriers = pShadow->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
@@ -623,13 +622,8 @@ void VolumeRender::PopulateCommandList()
 	default:
 		assert(!"Cannot reach here!");
 	}
-	
-	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET);
-	numBarriers = pColor->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
-	pCommandList->Barrier(numBarriers, barriers);
-	pCommandList->OMSetRenderTargets(1, &m_renderTargets[m_frameIndex]->GetRTV());
 
-	m_objectRenderer->Postprocess(pCommandList);
+	m_objectRenderer->Postprocess(pCommandList, m_renderTargets[m_frameIndex].get());
 
 	// Indicate that the back buffer will now be used to present.
 	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::PRESENT);

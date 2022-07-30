@@ -221,11 +221,11 @@ bool RayCaster::Init(const Device* pDevice, const DescriptorTableCache::sptr& de
 	const uint8_t numMips = 5;
 	m_cubeMap = Texture2D::MakeUnique();
 	XUSG_N_RETURN(m_cubeMap->Create(pDevice, gridSize, gridSize, Format::R16G16B16A16_FLOAT, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, true, MemoryFlag::NONE, L"CubeMap"), false);
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, true, MemoryFlag::NONE, L"RadianceCubeMap"), false);
 
 	m_cubeDepth = Texture2D::MakeUnique();
 	XUSG_N_RETURN(m_cubeDepth->Create(pDevice, gridSize, gridSize, Format::R32_FLOAT, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, true, MemoryFlag::NONE, L"CubeDepth"), false);
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1, true, MemoryFlag::NONE, L"DepthCubeMap"), false);
 
 	m_lightMap = Texture3D::MakeUnique();
 	XUSG_N_RETURN(m_lightMap->Create(pDevice, m_lightGridSize, m_lightGridSize, m_lightGridSize,
