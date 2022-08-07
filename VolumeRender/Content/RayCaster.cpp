@@ -520,7 +520,7 @@ bool RayCaster::createPipelineLayouts()
 #elif _CPU_CUBE_FACE_CULL_ == 2
 		pipelineLayout->SetRootCBV(6, 3);
 #endif
-		pipelineLayout->SetStaticSamplers(samplers, 1, 0);
+		pipelineLayout->SetStaticSamplers(samplers, 2, 0);
 		XUSG_X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"RayMarchingLayout"), false);
 	}
