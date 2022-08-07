@@ -102,7 +102,6 @@ protected:
 	XUSG::DescriptorTable	m_srvUavTable;
 	XUSG::DescriptorTable	m_srvTables[NUM_SRV_TABLE];
 	XUSG::DescriptorTable	m_uavTable;
-	XUSG::DescriptorTable	m_samplerTable;
 
 	XUSG::Texture::sptr			m_fileSrc;
 	XUSG::Texture3D::uptr		m_volume;
