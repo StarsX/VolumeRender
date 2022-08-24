@@ -275,9 +275,6 @@ bool RayCaster::LoadVolumeData(CommandList* pCommandList, const wchar_t* fileNam
 	ResourceBarrier barrier;
 	m_volume->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
 
-	const auto descriptorPool = m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL);
-	pCommandList->SetDescriptorPools(1, &descriptorPool);
-
 	// Set pipeline state
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[LOAD_VOLUME_DATA]);
 	pCommandList->SetPipelineState(m_pipelines[LOAD_VOLUME_DATA]);
@@ -303,10 +300,6 @@ void RayCaster::InitVolumeData(const CommandList* pCommandList)
 {
 	ResourceBarrier barrier;
 	m_volume->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
-
-	const DescriptorPool pDescriptorPool[] =
-	{ m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL) };
-	pCommandList->SetDescriptorPools(1, pDescriptorPool);
 
 	// Set pipeline state
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[INIT_VOLUME_DATA]);

@@ -148,6 +148,9 @@ void VolumeRender::LoadAssets()
 	XUSG_N_RETURN(pCommandList->Create(m_device.get(), 0, CommandListType::DIRECT,
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
+	const auto descriptorPool = m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL);
+	pCommandList->SetDescriptorPools(1, &descriptorPool);
+
 	// Clear color setting
 	m_clearColor = { 0.2f, 0.2f, 0.2f, 0.0f };
 	m_clearColor = m_volumeFile.empty() ? m_clearColor : DirectX::Colors::CornflowerBlue;
@@ -336,8 +339,8 @@ void VolumeRender::OnWindowSizeChanged(int width, int height)
 		m_renderTargets[n].reset();
 		m_fenceValues[n] = m_fenceValues[m_frameIndex];
 	}
-	m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
-	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL, 0);
+	m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL);
+	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL);
 
 	// Determine the render target size in pixels.
 	m_width = (max)(width, 1);
