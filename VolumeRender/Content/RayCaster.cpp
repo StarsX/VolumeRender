@@ -15,7 +15,6 @@ using namespace XUSG;
 struct CBPerFrame
 {
 	XMFLOAT4 EyePos;
-	XMFLOAT3X4 LightMapWorld;
 	XMFLOAT4X4 ShadowViewProj;
 	XMFLOAT4 LightPos;
 	XMFLOAT4 LightColor;
@@ -28,7 +27,6 @@ struct CBPerObject
 	XMFLOAT4X4 WorldViewProj;
 	XMFLOAT3X4 WorldI;
 	XMFLOAT3X4 World;
-	XMFLOAT3X4 LocalToLight;
 };
 
 #ifdef _CPU_CUBE_FACE_CULL_
@@ -193,7 +191,6 @@ RayCaster::RayCaster() :
 	m_shaderPool = ShaderPool::MakeUnique();
 
 	XMStoreFloat3x4(&m_volumeWorld, XMMatrixScaling(10.0f, 10.0f, 10.0f));
-	m_lightMapWorld = m_volumeWorld;
 }
 
 RayCaster::~RayCaster()
@@ -242,7 +239,7 @@ bool RayCaster::Init(const Device* pDevice, const DescriptorTableCache::sptr& de
 
 #if _CPU_CUBE_FACE_CULL_ == 2
 	m_cbCubeFaceList = ConstantBuffer::MakeUnique();
-	XUSG_N_RETURN(m_cbCubeFaceList->Create(m_device.get(), sizeof(CBCubeFaceList[FrameCount]), FrameCount,
+	XUSG_N_RETURN(m_cbCubeFaceList->Create(pDevice, sizeof(CBCubeFaceList[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"RayCaster.CBCubeFaceList"), false);
 #endif
 
@@ -338,14 +335,6 @@ void RayCaster::SetVolumeWorld(float size, const XMFLOAT3& pos, const XMFLOAT3* 
 	XMStoreFloat3x4(&m_volumeWorld, world);
 }
 
-void RayCaster::SetLightMapWorld(float size, const XMFLOAT3& pos)
-{
-	size *= 0.5f;
-	auto world = XMMatrixScaling(size, size, size);
-	world = world * XMMatrixTranslation(pos.x, pos.y, pos.z);
-	XMStoreFloat3x4(&m_lightMapWorld, world);
-}
-
 void RayCaster::SetLight(const XMFLOAT3& pos, const XMFLOAT3& color, float intensity)
 {
 	m_lightPt = pos;
@@ -363,7 +352,6 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 	{
 		const auto pCbData = reinterpret_cast<CBPerFrame*>(m_cbPerFrame->Map(frameIndex));
 		pCbData->EyePos = XMFLOAT4(eyePt.x, eyePt.y, eyePt.z, 1.0f);
-		pCbData->LightMapWorld = m_lightMapWorld;
 		pCbData->ShadowViewProj = shadowVP;
 		pCbData->LightPos = XMFLOAT4(m_lightPt.x, m_lightPt.y, m_lightPt.z, 1.0f);
 		pCbData->LightColor = m_lightColor;
@@ -372,9 +360,6 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 
 	// Per-object
 	{
-		const auto lightWorld = XMLoadFloat3x4(&m_lightMapWorld);
-		const auto lightWorldI = XMMatrixInverse(nullptr, lightWorld);
-
 		const auto world = XMLoadFloat3x4(&m_volumeWorld);
 		const auto worldI = XMMatrixInverse(nullptr, world);
 		const auto worldViewProj = world * viewProj;
@@ -384,7 +369,6 @@ void RayCaster::UpdateFrame(uint8_t frameIndex, CXMMATRIX viewProj, const XMFLOA
 		XMStoreFloat4x4(&pCbData->WorldViewProjI, XMMatrixTranspose(XMMatrixInverse(nullptr, worldViewProj)));
 		XMStoreFloat3x4(&pCbData->WorldI, worldI);
 		XMStoreFloat3x4(&pCbData->World, world);
-		XMStoreFloat3x4(&pCbData->LocalToLight, world * lightWorldI);
 
 		{
 			m_raySampleCount = m_maxRaySamples;
@@ -456,27 +440,6 @@ void RayCaster::RayMarchL(const CommandList* pCommandList, uint8_t frameIndex)
 
 	// Dispatch grid
 	pCommandList->Dispatch(XUSG_DIV_UP(m_lightGridSize, 4), XUSG_DIV_UP(m_lightGridSize, 4), XUSG_DIV_UP(m_lightGridSize, 4));
-}
-
-const DescriptorTable& RayCaster::GetVolumeSRVTable(CommandList* pCommandList)
-{
-	// Set barrier
-	ResourceBarrier barrier;
-	const auto numBarriers = m_volume->SetBarrier(&barrier, ResourceState::NON_PIXEL_SHADER_RESOURCE |
-		ResourceState::PIXEL_SHADER_RESOURCE);
-	pCommandList->Barrier(numBarriers, &barrier);
-
-	return m_srvUavTable;
-}
-
-const DescriptorTable& RayCaster::GetLightSRVTable() const
-{
-	return m_srvTables[SRV_TABLE_LIGHT_MAP];
-}
-
-Resource* RayCaster::GetLightMap() const
-{
-	return m_lightMap.get();
 }
 
 bool RayCaster::createPipelineLayouts()

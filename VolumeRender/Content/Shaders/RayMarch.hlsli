@@ -214,7 +214,6 @@ min16float GetStep(min16float transm, min16float opacity, min16float stepScale)
 #ifdef _LIGHT_PASS_
 float3 GetLight(float3 pos, float3 rayDir, float3 shCoeffs[SH_NUM_COEFF])
 {
-	pos = mul(float4(pos, 1.0), g_localToLight);
 	const float3 uvw = pos * 0.5 + 0.5;
 
 	return g_txLightMap.SampleLevel(g_smpLinear, uvw, 0.0);

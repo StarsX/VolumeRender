@@ -42,11 +42,9 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_isPaused(false),
 	m_tracking(false),
 	m_gridSize(128),
-	m_lightGridSize(192),
+	m_lightGridSize(128),
 	m_maxRaySamples(256),
 	m_maxLightSamples(64),
-	m_numParticles(1 << 14),
-	m_particleSize(2.5f),
 	m_volumeFile(L""),
 	m_radianceFile(L""),
 	m_meshFileName("Assets/bunny.obj"),
@@ -174,7 +172,6 @@ void VolumeRender::LoadAssets()
 	const auto volumeSize = m_volPosScale.w * 2.0f;
 	const auto volumePos = XMFLOAT3(m_volPosScale.x, m_volPosScale.y, m_volPosScale.z);
 	m_rayCaster->SetVolumeWorld(volumeSize, volumePos);
-	m_rayCaster->SetLightMapWorld(volumeSize * 2.0f, volumePos);
 	m_rayCaster->SetMaxSamples(m_maxRaySamples, m_maxLightSamples);
 
 	if (m_volumeFile.empty()) m_rayCaster->InitVolumeData(pCommandList);
@@ -501,18 +498,6 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 			_wcsnicmp(argv[i], L"/lightGridSize", wcslen(argv[i])) == 0)
 		{
 			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_lightGridSize);
-		}
-		else if (_wcsnicmp(argv[i], L"-particles", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/particles", wcslen(argv[i])) == 0)
-		{
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_numParticles);
-		}
-		else if (_wcsnicmp(argv[i], L"-particleSize", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/particleSize", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"-pSize", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/pSize", wcslen(argv[i])) == 0)
-		{
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_particleSize);
 		}
 		else if (_wcsnicmp(argv[i], L"-volume", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/volume", wcslen(argv[i])) == 0)

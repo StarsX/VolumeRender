@@ -22,11 +22,11 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	rayOrigin.xyz = (DTid + 0.5) / gridSize * 2.0 - 1.0;
 	rayOrigin.w = 1.0;
 
-	rayOrigin.xyz = mul(rayOrigin, g_lightMapWorld);	// Light-map space to world space
+	//rayOrigin.xyz = mul(rayOrigin, g_world);	// Light-map space to world space
 
 	// Transmittance
 #ifdef _HAS_SHADOW_MAP_
-	min16float shadow = ShadowTest(rayOrigin.xyz, g_txDepth);
+	min16float shadow = ShadowTest(mul(rayOrigin, g_world), g_txDepth);
 #else
 	min16float shadow = 1.0;
 #endif
@@ -36,7 +36,8 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	float3 irradiance = 0.0;
 #endif
 
-	rayOrigin.xyz = mul(rayOrigin, g_worldI);			// World space to volume space
+	// Light-map space same to volume space (coupled)
+	//rayOrigin.xyz = mul(rayOrigin, g_worldI);	// World space to volume space
 	const float3 uvw = LocalToTex3DSpace(rayOrigin.xyz);
 	const min16float density = GetSample(uvw).w;
 

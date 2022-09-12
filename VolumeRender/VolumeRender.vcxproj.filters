@@ -37,7 +37,10 @@
     <Filter Include="Shaders\VolumeData">
       <UniqueIdentifier>{5788f631-faf1-411f-a31b-d88dc85a7df5}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Shaders\SHMath">
+    <Filter Include="XUSG\Shaders">
+      <UniqueIdentifier>{f6829551-d55c-42a3-b6f5-8b3dc6c256a5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="XUSG\Shaders\SHMath">
       <UniqueIdentifier>{bd95b082-06fc-463c-8990-e48a5e3ae3af}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -149,13 +152,13 @@
       <Filter>Shaders\RayCaster</Filter>
     </None>
     <None Include="XUSG\Shaders\CubeMap.hlsli">
-      <Filter>Shaders\SHMath</Filter>
+      <Filter>XUSG\Shaders\SHMath</Filter>
     </None>
     <None Include="XUSG\Shaders\SHIrradiance.hlsli">
-      <Filter>Shaders\SHMath</Filter>
+      <Filter>XUSG\Shaders\SHMath</Filter>
     </None>
     <None Include="XUSG\Shaders\SHIrradianceTypeless.hlsli">
-      <Filter>Shaders\SHMath</Filter>
+      <Filter>XUSG\Shaders\SHMath</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
