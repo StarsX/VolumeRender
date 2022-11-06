@@ -133,8 +133,8 @@ void VolumeRender::LoadPipeline()
 			(L"CommandAllocator" + to_wstring(n)).c_str()), ThrowIfFailed(E_FAIL));
 	}
 
-	// Create descriptor table cache.
-	m_descriptorTableCache = DescriptorTableCache::MakeShared(m_device.get(), L"DescriptorTableCache");
+	// Create descriptor-table lib.
+	m_descriptorTableLib = DescriptorTableLib::MakeShared(m_device.get(), L"DescriptorTableLib");
 }
 
 // Load the sample assets.
@@ -158,16 +158,16 @@ void VolumeRender::LoadAssets()
 	if (!m_radianceFile.empty())
 	{
 		XUSG_X_RETURN(m_lightProbe, make_unique<LightProbe>(), ThrowIfFailed(E_FAIL));
-		XUSG_N_RETURN(m_lightProbe->Init(pCommandList, m_descriptorTableCache, uploaders,
+		XUSG_N_RETURN(m_lightProbe->Init(pCommandList, m_descriptorTableLib, uploaders,
 			m_radianceFile.c_str(), g_rtFormat, g_dsFormat), ThrowIfFailed(E_FAIL));
 	}
 
 	XUSG_X_RETURN(m_objectRenderer, make_unique<ObjectRenderer>(), ThrowIfFailed(E_FAIL));
-	XUSG_N_RETURN(m_objectRenderer->Init(m_commandList.get(), m_descriptorTableCache, uploaders,
+	XUSG_N_RETURN(m_objectRenderer->Init(m_commandList.get(), m_descriptorTableLib, uploaders,
 		m_meshFileName.c_str(), g_backFormat, g_rtFormat, g_dsFormat, m_meshPosScale), ThrowIfFailed(E_FAIL));
 
 	XUSG_X_RETURN(m_rayCaster, make_unique<RayCaster>(), ThrowIfFailed(E_FAIL));
-	XUSG_N_RETURN(m_rayCaster->Init(m_device.get(), m_descriptorTableCache, g_rtFormat, m_gridSize,
+	XUSG_N_RETURN(m_rayCaster->Init(m_device.get(), m_descriptorTableLib, g_rtFormat, m_gridSize,
 		m_lightGridSize, m_objectRenderer->GetDepthMaps()), ThrowIfFailed(E_FAIL));
 	const auto volumeSize = m_volPosScale.w * 2.0f;
 	const auto volumePos = XMFLOAT3(m_volPosScale.x, m_volPosScale.y, m_volPosScale.z);
@@ -333,7 +333,7 @@ void VolumeRender::OnWindowSizeChanged(int width, int height)
 		m_renderTargets[n].reset();
 		m_fenceValues[n] = m_fenceValues[m_frameIndex];
 	}
-	m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL);
+	m_descriptorTableLib->ResetDescriptorPool(CBV_SRV_UAV_POOL);
 	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL);
 
 	// Determine the render target size in pixels.
@@ -553,7 +553,7 @@ void VolumeRender::PopulateCommandList()
 		}
 	}
 
-	const auto descriptorPool = m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL);
+	const auto descriptorPool = m_descriptorTableLib->GetDescriptorPool(CBV_SRV_UAV_POOL);
 	pCommandList->SetDescriptorPools(1, &descriptorPool);
 
 	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex, m_showMesh);

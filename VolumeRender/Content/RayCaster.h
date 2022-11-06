@@ -20,7 +20,7 @@ public:
 	RayCaster();
 	virtual ~RayCaster();
 
-	bool Init(const XUSG::Device* pDevice, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
+	bool Init(const XUSG::Device* pDevice, const XUSG::DescriptorTableLib::sptr& descriptorTableLib,
 		XUSG::Format rtFormat, uint32_t gridSize, uint32_t lightGridSize, const XUSG::DepthStencil::uptr* depths);
 	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
 	bool SetDepthMaps(const XUSG::DepthStencil::uptr* depths);
@@ -83,11 +83,11 @@ protected:
 
 	XUSG::Device::sptr m_device;
 
-	XUSG::ShaderPool::uptr				m_shaderPool;
-	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
-	XUSG::Compute::PipelineCache::uptr	m_computePipelineCache;
-	XUSG::PipelineLayoutCache::uptr		m_pipelineLayoutCache;
-	XUSG::DescriptorTableCache::sptr	m_descriptorTableCache;
+	XUSG::ShaderLib::uptr				m_shaderLib;
+	XUSG::Graphics::PipelineLib::uptr	m_graphicsPipelineLib;
+	XUSG::Compute::PipelineLib::uptr	m_computePipelineLib;
+	XUSG::PipelineLayoutLib::uptr		m_pipelineLayoutLib;
+	XUSG::DescriptorTableLib::sptr		m_descriptorTableLib;
 
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];

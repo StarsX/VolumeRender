@@ -51,9 +51,9 @@ private:
 	static const auto FrameCount = RayCaster::FrameCount;
 	static_assert(FrameCount == ObjectRenderer::FrameCount, "VolumeRender::FrameCount should be equal to ObjectRenderer::FrameCount");
 
-	XUSG::com_ptr<IDXGIFactory5> m_factory;
+	XUSG::com_ptr<IDXGIFactory5>	m_factory;
 
-	XUSG::DescriptorTableCache::sptr m_descriptorTableCache;
+	XUSG::DescriptorTableLib::sptr	m_descriptorTableLib;
 
 	XUSG::SwapChain::uptr			m_swapChain;
 	XUSG::CommandAllocator::uptr	m_commandAllocators[FrameCount];
