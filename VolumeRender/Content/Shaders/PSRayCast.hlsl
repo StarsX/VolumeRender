@@ -129,7 +129,9 @@ min16float4 main(PSIn input) : SV_TARGET
 		// Update position along ray
 		step = newStep;
 		t += step;
+#ifdef _HAS_DEPTH_MAP_
 		if (t > tMax) break;
+#endif
 	}
 
 	scatter.xyz /= 2.0 * PI;
