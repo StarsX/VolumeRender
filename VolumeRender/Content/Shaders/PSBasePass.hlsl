@@ -47,7 +47,8 @@ cbuffer cbSampleRes
 };
 #endif
 
-static min16float3 baseColor = { 1.0, 0.6, 0.2 };
+static min16float3 g_baseColor = { 1.0, 0.6, 0.2 };
+static min16float3 g_diffuseBRDF = g_baseColor / PI;
 
 //--------------------------------------------------------------------------------------
 // Textures
@@ -100,7 +101,7 @@ PSOut main(PSIn input)
 #ifdef _HAS_LIGHT_PROBE_
 	float3 irradiance = 0.0;
 	const bool hasIrradiance = g_hasLightProbes & IRRADIANCE_BIT;
-	if (hasIrradiance) irradiance = EvaluateSHIrradiance(g_roSHCoeffs, N);
+	if (hasIrradiance) irradiance = EvaluateSHIrradiance(g_roSHCoeffs, N).xyz;
 #endif
 
 	const float2 csPos = input.CSPos.xy / input.CSPos.w;
@@ -140,10 +141,10 @@ PSOut main(PSIn input)
 	radiance *= 0.04 * amb.x + amb.y;
 #endif
 
-	min16float3 result = baseColor * NoL;
-	result += pow(NoH, 64.0) * Fresnel(NoV, 0.08) * PI;
+	min16float3 result = g_diffuseBRDF * NoL;
+	result += pow(NoH, 64.0) * Fresnel(NoV, 0.08);
 	result *= lightColor * min16float(shadow);
-	result += baseColor * ambient + min16float3(radiance);
+	result += g_diffuseBRDF * ambient + min16float3(radiance);
 
 	output.Color = min16float4(result, 1.0);
 	output.Velocity = min16float4(velocity, 0.0.xx);

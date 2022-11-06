@@ -277,7 +277,7 @@ void VolumeRender::OnUpdate()
 	const XMFLOAT3 lightPt(75.0f, 75.0f, -75.0f);
 	const XMFLOAT3 lightColor(1.0f, 0.7f, 0.3f);
 	const XMFLOAT3 ambientColor(0.4f, 0.6f, 1.0f);
-	const auto lightIntensity = 2.0f, ambientIntensity = 0.4f;
+	const auto lightIntensity = 3.0f * XM_PI, ambientIntensity = 2.0f * XM_PI;
 	m_objectRenderer->SetLight(lightPt, lightColor, lightIntensity);
 	m_objectRenderer->SetAmbient(ambientColor, ambientIntensity);
 	m_rayCaster->SetLight(lightPt, lightColor, lightIntensity);
