@@ -96,9 +96,6 @@
     <ClInclude Include="XUSG\Advanced\XUSGSphericalHarmonics.h">
       <Filter>XUSG</Filter>
     </ClInclude>
-    <ClInclude Include="XUSG\Advanced\XUSGSHSharedConsts.h">
-      <Filter>XUSG</Filter>
-    </ClInclude>
     <ClInclude Include="Common\d3dcommon.h">
       <Filter>Common\Header Files</Filter>
     </ClInclude>
@@ -150,9 +147,6 @@
     </None>
     <None Include="Content\Shaders\PSCube.hlsli">
       <Filter>Shaders\RayCaster</Filter>
-    </None>
-    <None Include="XUSG\Shaders\CubeMap.hlsli">
-      <Filter>XUSG\Shaders\SHMath</Filter>
     </None>
     <None Include="XUSG\Shaders\SHIrradiance.hlsli">
       <Filter>XUSG\Shaders\SHMath</Filter>

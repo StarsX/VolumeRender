@@ -184,7 +184,6 @@ COPY /Y "$(ProjectDir)XUSG\Bin\$(Platform)\$(Configuration)\*.dll" "$(ProjectDir
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h" />
     <ClInclude Include="XUSG\Advanced\XUSGHalton.h" />
-    <ClInclude Include="XUSG\Advanced\XUSGSHSharedConsts.h" />
     <ClInclude Include="XUSG\Advanced\XUSGSphericalHarmonics.h" />
     <ClInclude Include="XUSG\Core\XUSG.h" />
     <ClInclude Include="XUSG\Optional\XUSGObjLoader.h" />
@@ -254,7 +253,6 @@ COPY /Y "$(ProjectDir)XUSG\Bin\$(Platform)\$(Configuration)\*.dll" "$(ProjectDir
     <None Include="Content\Shaders\Random.hlsli" />
     <None Include="Content\Shaders\Common.hlsli" />
     <None Include="Content\Shaders\RayMarch.hlsli" />
-    <None Include="XUSG\Shaders\CubeMap.hlsli" />
     <None Include="XUSG\Shaders\SHIrradiance.hlsli" />
     <None Include="XUSG\Shaders\SHIrradianceTypeless.hlsli" />
   </ItemGroup>
