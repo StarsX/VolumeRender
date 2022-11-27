@@ -333,8 +333,8 @@ void VolumeRender::OnWindowSizeChanged(int width, int height)
 		m_renderTargets[n].reset();
 		m_fenceValues[n] = m_fenceValues[m_frameIndex];
 	}
-	m_descriptorTableLib->ResetDescriptorPool(CBV_SRV_UAV_POOL);
-	//m_descriptorTableCache->ResetDescriptorPool(RTV_POOL);
+	m_descriptorTableLib->ResetDescriptorHeap(CBV_SRV_UAV_HEAP);
+	//m_descriptorTableCache->ResetDescriptorHeap(RTV_HEAP);
 
 	// Determine the render target size in pixels.
 	m_width = (max)(width, 1);
@@ -541,6 +541,9 @@ void VolumeRender::PopulateCommandList()
 	XUSG_N_RETURN(pCommandList->Reset(pCommandAllocator, nullptr), ThrowIfFailed(E_FAIL));
 
 	// Record commands.
+	const auto descriptorHeap = m_descriptorTableLib->GetDescriptorHeap(CBV_SRV_UAV_HEAP);
+	pCommandList->SetDescriptorHeaps(1, &descriptorHeap);
+
 	if (m_lightProbe)
 	{
 		static auto isFirstFrame = true;
@@ -552,9 +555,6 @@ void VolumeRender::PopulateCommandList()
 			isFirstFrame = false;
 		}
 	}
-
-	const auto descriptorPool = m_descriptorTableLib->GetDescriptorPool(CBV_SRV_UAV_POOL);
-	pCommandList->SetDescriptorPools(1, &descriptorPool);
 
 	m_objectRenderer->RenderShadow(pCommandList, m_frameIndex, m_showMesh);
 

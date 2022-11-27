@@ -269,8 +269,8 @@ bool RayCaster::LoadVolumeData(CommandList* pCommandList, const wchar_t* fileNam
 		XUSG_X_RETURN(m_srvTables[SRV_TABLE_FILE_SRC], descriptorTable->GetCbvSrvUavTable(m_descriptorTableLib.get()), false);
 	}
 
-	const auto descriptorPool = m_descriptorTableLib->GetDescriptorPool(CBV_SRV_UAV_POOL);
-	pCommandList->SetDescriptorPools(1, &descriptorPool);
+	const auto descriptorHeap = m_descriptorTableLib->GetDescriptorHeap(CBV_SRV_UAV_HEAP);
+	pCommandList->SetDescriptorHeaps(1, &descriptorHeap);
 
 	ResourceBarrier barrier;
 	m_volume->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
@@ -298,8 +298,8 @@ bool RayCaster::SetDepthMaps(const DepthStencil::uptr* depths)
 
 void RayCaster::InitVolumeData(const CommandList* pCommandList)
 {
-	const auto descriptorPool = m_descriptorTableLib->GetDescriptorPool(CBV_SRV_UAV_POOL);
-	pCommandList->SetDescriptorPools(1, &descriptorPool);
+	const auto descriptorHeap = m_descriptorTableLib->GetDescriptorHeap(CBV_SRV_UAV_HEAP);
+	pCommandList->SetDescriptorHeaps(1, &descriptorHeap);
 
 	ResourceBarrier barrier;
 	m_volume->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
