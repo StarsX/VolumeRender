@@ -475,8 +475,8 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 
 	for (auto i = 1; i < argc; ++i)
 	{
-		if (_wcsnicmp(argv[i], L"-mesh", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/mesh", wcslen(argv[i])) == 0)
+		if (wcsncmp(argv[i], L"-mesh", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/mesh", wcslen(argv[i])) == 0)
 		{
 			if (i + 1 < argc)
 			{
@@ -484,44 +484,44 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 				for (size_t j = 0; j < m_meshFileName.size(); ++j)
 					m_meshFileName[j] = static_cast<char>(argv[i][j]);
 			}
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_meshPosScale.x);
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_meshPosScale.y);
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_meshPosScale.z);
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_meshPosScale.w);
+			if (i + 1 < argc) m_meshPosScale.x = stof(argv[++i]);
+			if (i + 1 < argc) m_meshPosScale.y = stof(argv[++i]);
+			if (i + 1 < argc) m_meshPosScale.z = stof(argv[++i]);
+			if (i + 1 < argc) m_meshPosScale.w = stof(argv[++i]);
 		}
-		else if (_wcsnicmp(argv[i], L"-gridSize", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/gridSize", wcslen(argv[i])) == 0)
+		else if (wcsncmp(argv[i], L"-gridSize", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/gridSize", wcslen(argv[i])) == 0)
 		{
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_gridSize);
+			if (i + 1 < argc) m_gridSize = stoul(argv[++i]);
 		}
-		else if (_wcsnicmp(argv[i], L"-lightGridSize", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/lightGridSize", wcslen(argv[i])) == 0)
+		else if (wcsncmp(argv[i], L"-lightGridSize", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/lightGridSize", wcslen(argv[i])) == 0)
 		{
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_lightGridSize);
+			if (i + 1 < argc) m_lightGridSize = stoul(argv[++i]);
 		}
-		else if (_wcsnicmp(argv[i], L"-volume", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/volume", wcslen(argv[i])) == 0)
+		else if (wcsncmp(argv[i], L"-volume", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/volume", wcslen(argv[i])) == 0)
 		{
-			m_volumeFile = i + 1 < argc ? argv[++i] : m_volumeFile;
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_volPosScale.x);
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_volPosScale.y);
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_volPosScale.z);
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%f", &m_volPosScale.w);
+			if (i + 1 < argc) m_volumeFile = argv[++i];
+			if (i + 1 < argc) m_volPosScale.x = stof(argv[++i]);
+			if (i + 1 < argc) m_volPosScale.y = stof(argv[++i]);
+			if (i + 1 < argc) m_volPosScale.z = stof(argv[++i]);
+			if (i + 1 < argc) m_volPosScale.w = stof(argv[++i]);
 		}
-		else if (_wcsnicmp(argv[i], L"-maxRaySamples", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/maxRaySamples", wcslen(argv[i])) == 0)
+		else if (wcsncmp(argv[i], L"-maxRaySamples", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/maxRaySamples", wcslen(argv[i])) == 0)
 		{
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_maxRaySamples);
+			if (i + 1 < argc) m_maxRaySamples = stoul(argv[++i]);
 		}
-		else if (_wcsnicmp(argv[i], L"-maxLightSamples", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/maxLightSamples", wcslen(argv[i])) == 0)
+		else if (wcsncmp(argv[i], L"-maxLightSamples", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/maxLightSamples", wcslen(argv[i])) == 0)
 		{
-			if (i + 1 < argc) i += swscanf_s(argv[i + 1], L"%u", &m_maxLightSamples);
+			if (i + 1 < argc) m_maxLightSamples = stoul(argv[++i]);
 		}
-		else if (_wcsnicmp(argv[i], L"-radiance", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/radiance", wcslen(argv[i])) == 0)
+		else if (wcsncmp(argv[i], L"-radiance", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/radiance", wcslen(argv[i])) == 0)
 		{
-			m_radianceFile = i + 1 < argc ? argv[++i] : m_radianceFile;
+			if (i + 1 < argc) m_radianceFile = argv[++i];
 		}
 	}
 }
