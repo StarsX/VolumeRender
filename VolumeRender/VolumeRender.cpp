@@ -11,6 +11,7 @@
 
 #include "SharedConsts.h"
 #include "VolumeRender.h"
+#include "stb_image_write.h"
 #include <DirectXColors.h>
 
 using namespace std;
@@ -29,7 +30,7 @@ enum RenderMethod
 const float g_FOVAngleY = XM_PIDIV4;
 
 RenderMethod g_renderMethod = RAY_MARCH_SEPARATE;
-const auto g_backFormat = Format::B8G8R8A8_UNORM;
+const auto g_backFormat = Format::R8G8B8A8_UNORM;
 const auto g_rtFormat = Format::R16G16B16A16_FLOAT;
 const auto g_dsFormat = Format::D32_FLOAT;
 
@@ -398,6 +399,9 @@ void VolumeRender::OnKeyUp(uint8_t key)
 	case VK_RIGHT:
 		g_renderMethod = static_cast<RenderMethod>((g_renderMethod + 1) % NUM_RENDER_METHOD);
 		break;
+	case VK_F11:
+		m_screenShot = 1;
+		break;
 	case 'A':
 		m_animate = !m_animate;
 		break;
@@ -604,11 +608,20 @@ void VolumeRender::PopulateCommandList()
 		assert(!"Cannot reach here!");
 	}
 
-	m_objectRenderer->Postprocess(pCommandList, m_renderTargets[m_frameIndex].get());
+	const auto pRenderTarget = m_renderTargets[m_frameIndex].get();
+	m_objectRenderer->Postprocess(pCommandList, pRenderTarget);
 
 	// Indicate that the back buffer will now be used to present.
-	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::PRESENT);
+	numBarriers = pRenderTarget->SetBarrier(barriers, ResourceState::PRESENT);
 	pCommandList->Barrier(numBarriers, barriers);
+
+	// Screen-shot helper
+	if (m_screenShot == 1)
+	{
+		if (!m_readBuffer) m_readBuffer = Buffer::MakeUnique();
+		pRenderTarget->ReadBack(pCommandList, m_readBuffer.get(), &m_rowPitch);
+		m_screenShot = 2;
+	}
 
 	XUSG_N_RETURN(pCommandList->Close(), ThrowIfFailed(E_FAIL));
 }
@@ -646,6 +659,43 @@ void VolumeRender::MoveToNextFrame()
 
 	// Set the fence value for the next frame.
 	m_fenceValues[m_frameIndex] = currentFenceValue + 1;
+
+	// Screen-shot helper
+	if (m_screenShot)
+	{
+		if (m_screenShot > FrameCount)
+		{
+			char timeStr[15];
+			tm dateTime;
+			const auto now = time(nullptr);
+			if (!localtime_s(&dateTime, &now) && strftime(timeStr, sizeof(timeStr), "%Y%m%d%H%M%S", &dateTime))
+				SaveImage((string("VolumeRender_") + timeStr + ".png").c_str(), m_readBuffer.get(), m_width, m_height, m_rowPitch);
+			m_screenShot = 0;
+		}
+		else ++m_screenShot;
+	}
+}
+
+void VolumeRender::SaveImage(char const* fileName, Buffer* imageBuffer, uint32_t w, uint32_t h, uint32_t rowPitch, uint8_t comp)
+{
+	assert(comp == 3 || comp == 4);
+	const auto pData = static_cast<uint8_t*>(imageBuffer->Map(nullptr));
+
+	//stbi_write_png_compression_level = 1024;
+	vector<uint8_t> imageData(comp * w * h);
+	const auto sw = rowPitch / 4;
+	for (auto i = 0u; i < h; ++i)
+		for (auto j = 0u; j < w; ++j)
+		{
+			const auto s = sw * i + j;
+			const auto d = w * i + j;
+			for (uint8_t k = 0; k < comp; ++k)
+				imageData[comp * d + k] = pData[4 * s + k];
+		}
+
+	stbi_write_png(fileName, w, h, comp, imageData.data(), 0);
+
+	m_readBuffer->Unmap();
 }
 
 double VolumeRender::CalculateFrameStats(float* pTimeStep)
@@ -689,6 +739,8 @@ double VolumeRender::CalculateFrameStats(float* pTimeStep)
 			windowText << L"Direct screen-space ray marching with separate lighting pass";
 			break;
 		}
+
+		windowText << L"    [F11] screen shot";
 
 		SetCustomWindowText(windowText.str().c_str());
 	}
