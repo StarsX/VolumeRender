@@ -68,7 +68,9 @@ bool ObjectRenderer::Init(CommandList* pCommandList, const DescriptorTableLib::s
 	if (!objLoader.Import(fileName, true, true)) return false;
 	XUSG_N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
 	XUSG_N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
-	m_sceneSize = objLoader.GetRadius() * posScale.w * 2.0f;
+	const auto& aabb = objLoader.GetAABB();
+	const XMFLOAT3 ext(aabb.Max.x - aabb.Min.x, aabb.Max.y - aabb.Min.y, aabb.Max.z - aabb.Min.z);
+	m_sceneSize = (max)(ext.x, (max)(ext.y, ext.z)) * posScale.w;
 
 	// Create resources
 	const auto smFormat = Format::D16_UNORM;
@@ -252,7 +254,7 @@ void ObjectRenderer::TemporalAA(CommandList* pCommandList)
 	ResourceBarrier barriers[4];
 	auto numBarriers = m_temporalViews[m_frameParity]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
 	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	numBarriers = m_temporalViews[!m_frameParity]->SetBarrier(barriers, ResourceState::SHADER_RESOURCE, numBarriers);
+	numBarriers = m_temporalViews[!m_frameParity]->SetBarrier(barriers, ResourceState::ALL_SHADER_RESOURCE, numBarriers);
 	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
 	//numBarriers = m_temporalViews[!m_frameParity]->SetBarrier(barriers, ResourceState::SHADER_RESOURCE,
 		//numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
@@ -274,7 +276,7 @@ void ObjectRenderer::ToneMap(CommandList* pCommandList, RenderTarget* pColorOut)
 {
 	ResourceBarrier barriers[2];
 	auto numBarriers = pColorOut->SetBarrier(barriers, ResourceState::RENDER_TARGET);
-	numBarriers = m_temporalViews[m_frameParity]->SetBarrier(barriers, ResourceState::SHADER_RESOURCE, numBarriers);
+	numBarriers = m_temporalViews[m_frameParity]->SetBarrier(barriers, ResourceState::ALL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set render target
