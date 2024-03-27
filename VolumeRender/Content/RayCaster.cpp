@@ -296,7 +296,7 @@ bool RayCaster::SetDepthMaps(const DepthStencil::uptr* depths)
 	return createDescriptorTables();
 }
 
-void RayCaster::InitVolumeData(const CommandList* pCommandList)
+void RayCaster::InitVolumeData(CommandList* pCommandList)
 {
 	const auto descriptorHeap = m_descriptorTableLib->GetDescriptorHeap(CBV_SRV_UAV_HEAP);
 	pCommandList->SetDescriptorHeaps(1, &descriptorHeap);

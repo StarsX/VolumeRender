@@ -25,7 +25,7 @@ public:
 	bool LoadVolumeData(XUSG::CommandList* pCommandList, const wchar_t* fileName, std::vector<XUSG::Resource::uptr>& uploaders);
 	bool SetDepthMaps(const XUSG::DepthStencil::uptr* depths);
 
-	void InitVolumeData(const XUSG::CommandList* pCommandList);
+	void InitVolumeData(XUSG::CommandList* pCommandList);
 	void SetSH(const XUSG::StructuredBuffer::sptr& coeffSH);
 	void SetMaxSamples(uint32_t maxRaySamples, uint32_t maxLightSamples);
 	void SetVolumeWorld(float size, const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3* pPitchYawRoll = nullptr);
