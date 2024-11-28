@@ -48,6 +48,13 @@ public:
 	virtual void ParseCommandLineArgs(wchar_t* argv[], int argc);
 
 private:
+	enum DeviceType : uint8_t
+	{
+		DEVICE_DISCRETE,
+		DEVICE_UMA,
+		DEVICE_WARP
+	};
+
 	static const auto FrameCount = RayCaster::FrameCount;
 	static_assert(FrameCount == ObjectRenderer::FrameCount, "VolumeRender::FrameCount should be equal to ObjectRenderer::FrameCount");
 
@@ -79,11 +86,12 @@ private:
 	uint64_t	m_fenceValues[FrameCount];
 
 	// Application state
+	DeviceType	m_deviceType;
+	StepTimer	m_timer;
 	bool		m_animate;
 	bool		m_showMesh;
 	bool		m_showFPS;
 	bool		m_isPaused;
-	StepTimer	m_timer;
 	
 	// User camera interactions
 	bool m_tracking;
