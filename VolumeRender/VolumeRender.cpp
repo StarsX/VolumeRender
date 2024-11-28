@@ -39,7 +39,7 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_frameIndex(0),
 	m_deviceType(DEVICE_DISCRETE),
 	m_animate(false),
-	m_showMesh(false),
+	m_showMesh(true),
 	m_showFPS(true),
 	m_isPaused(false),
 	m_tracking(false),
