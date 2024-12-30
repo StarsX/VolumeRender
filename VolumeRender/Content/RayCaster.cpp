@@ -453,7 +453,8 @@ bool RayCaster::createPipelineLayouts()
 	const Sampler* pLitSamplers[] =
 	{
 		m_descriptorTableLib->GetSampler(SamplerPreset::LINEAR_CLAMP),
-		m_descriptorTableLib->GetSampler(SamplerPreset::LINEAR_LESS_EQUAL)
+		m_descriptorTableLib->GetSampler(SamplerPreset::LINEAR_LESS_EQUAL),
+		m_descriptorTableLib->GetSampler(SamplerPreset::POINT_CLAMP)
 	};
 
 	// Load grid data
@@ -488,7 +489,7 @@ bool RayCaster::createPipelineLayouts()
 #elif _CPU_CUBE_FACE_CULL_ == 2
 		pipelineLayout->SetRootCBV(6, 3);
 #endif
-		pipelineLayout->SetStaticSamplers(pSamplers, 2, 0);
+		pipelineLayout->SetStaticSamplers(pLitSamplers, static_cast<uint32_t>(size(pLitSamplers)), 0);
 		XUSG_X_RETURN(m_pipelineLayouts[RAY_MARCH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutLib.get(),
 			PipelineLayoutFlag::NONE, L"RayMarchingLayout"), false);
 	}
@@ -502,7 +503,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
 		pipelineLayout->SetConstants(3, 2, 2);
 		pipelineLayout->SetRootSRV(4, 2);
-		pipelineLayout->SetStaticSamplers(pLitSamplers, static_cast<uint32_t>(size(pLitSamplers)), 0);
+		pipelineLayout->SetStaticSamplers(pLitSamplers, 2, 0);
 		XUSG_X_RETURN(m_pipelineLayouts[RAY_MARCH_L], pipelineLayout->GetPipelineLayout(m_pipelineLayoutLib.get(),
 			PipelineLayoutFlag::NONE, L"LightSpaceRayMarchingLayout"), false);
 	}
@@ -520,7 +521,7 @@ bool RayCaster::createPipelineLayouts()
 #elif _CPU_CUBE_FACE_CULL_ == 2
 		pipelineLayout->SetRootCBV(5, 3);
 #endif
-		pipelineLayout->SetStaticSamplers(pSamplers, 2, 0);
+		pipelineLayout->SetStaticSamplers(pSamplers, static_cast<uint32_t>(size(pSamplers)), 0);
 		XUSG_X_RETURN(m_pipelineLayouts[RAY_MARCH_V], pipelineLayout->GetPipelineLayout(m_pipelineLayoutLib.get(),
 			PipelineLayoutFlag::NONE, L"ViewSpaceRayMarchingLayout"), false);
 	}
@@ -560,7 +561,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 2, 1);
 		pipelineLayout->SetConstants(3, 3, 2, 0, Shader::Stage::PS);
 		pipelineLayout->SetRootSRV(4, 3, 0, DescriptorFlag::NONE, Shader::Stage::PS);
-		pipelineLayout->SetStaticSamplers(pSamplers, 1, 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetStaticSamplers(pLitSamplers, 2, 0, 0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(1, Shader::Stage::PS);
 		pipelineLayout->SetShaderStage(2, Shader::Stage::PS);
