@@ -52,6 +52,11 @@ Texture2D<float> g_txShadow;
 StructuredBuffer<float3> g_roSHCoeffs;
 #endif
 
+
+#if defined(_HAS_SHADOW_MAP_) && !defined(_LIGHT_PASS_)
+SamplerComparisonState g_smpShadow;
+#endif
+
 //--------------------------------------------------------------------------------------
 // Sample density field
 //--------------------------------------------------------------------------------------
@@ -95,20 +100,20 @@ float3 GetDensityGradient(float3 uvw)
 }
 
 //--------------------------------------------------------------------------------------
-// Get opacity
+// Get translucency
 //--------------------------------------------------------------------------------------
-min16float GetTranslucency(min16float density, min16float stepScale)
+min16float GetTranslucency(min16float density, min16float step)
 {
-	return saturate(density * stepScale * ABSORPTION);
+	return saturate(density * step * ABSORPTION);
 }
 
 //--------------------------------------------------------------------------------------
 // Get premultiplied color
 //--------------------------------------------------------------------------------------
 #ifdef _PRE_MULTIPLIED_
-min16float3 GetPremultiplied(min16float3 color, min16float stepScale)
+min16float3 GetPremultiplied(min16float3 color, min16float step)
 {
-	return color * saturate(stepScale * ABSORPTION );
+	return color * saturate(step * ABSORPTION);
 }
 #endif
 
@@ -135,16 +140,16 @@ float GetTMax(float3 pos, float3 rayOrigin, float3 rayDir, float tMax)
 //--------------------------------------------------------------------------------------
 // Get occluded end point
 //--------------------------------------------------------------------------------------
-#ifdef _HAS_SHADOW_MAP_
+#if defined(_HAS_SHADOW_MAP_) && !defined(_LIGHT_PASS_)
 min16float ShadowTest(float3 pos, Texture2D<float> txDepth)
 {
 	const float3 lsPos = mul(float4(pos, 1.0), g_shadowViewProj).xyz;
 	float2 shadowUV = lsPos.xy * 0.5 + 0.5;
 	shadowUV.y = 1.0 - shadowUV.y;
 
-	const float depth = txDepth.SampleLevel(g_smpLinear, shadowUV, 0.0);
+	const float shadow = txDepth.SampleCmpLevelZero(g_smpShadow, shadowUV, lsPos.z - 0.0027);
 
-	return lsPos.z < depth;
+	return min16float(shadow);
 }
 #endif
 

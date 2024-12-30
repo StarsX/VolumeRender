@@ -450,6 +450,12 @@ bool RayCaster::createPipelineLayouts()
 		m_descriptorTableLib->GetSampler(SamplerPreset::POINT_CLAMP)
 	};
 
+	const Sampler* pLitSamplers[] =
+	{
+		m_descriptorTableLib->GetSampler(SamplerPreset::LINEAR_CLAMP),
+		m_descriptorTableLib->GetSampler(SamplerPreset::LINEAR_LESS_EQUAL)
+	};
+
 	// Load grid data
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
@@ -496,7 +502,7 @@ bool RayCaster::createPipelineLayouts()
 		pipelineLayout->SetRange(2, DescriptorType::SRV, 1, 1);
 		pipelineLayout->SetConstants(3, 2, 2);
 		pipelineLayout->SetRootSRV(4, 2);
-		pipelineLayout->SetStaticSamplers(pSamplers, 1, 0);
+		pipelineLayout->SetStaticSamplers(pLitSamplers, static_cast<uint32_t>(size(pLitSamplers)), 0);
 		XUSG_X_RETURN(m_pipelineLayouts[RAY_MARCH_L], pipelineLayout->GetPipelineLayout(m_pipelineLayoutLib.get(),
 			PipelineLayoutFlag::NONE, L"LightSpaceRayMarchingLayout"), false);
 	}
