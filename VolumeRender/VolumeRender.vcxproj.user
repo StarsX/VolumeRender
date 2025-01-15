@@ -13,11 +13,9 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LocalDebuggerWorkingDirectory>$(ProjectDir)..\Bin\</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerCommandArguments>-mesh Assets/bunny.obj 0 -9 0 1.8 -volume Assets/bunny.dds 0 0 0 10 -radiance Assets/Winter.dds</LocalDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LocalDebuggerWorkingDirectory>$(ProjectDir)..\Bin\</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerCommandArguments>-mesh Assets/bunny.obj 0 -9 0 1.8 -volume Assets/bunny.dds 0 0 0 10 -radiance Assets/Winter.dds</LocalDebuggerCommandArguments>
   </PropertyGroup>
 </Project>

@@ -8,9 +8,8 @@
 #include "SHIrradiance.hlsli"
 #endif
 
-#define ABSORPTION			0.6
-#define ZERO_THRESHOLD		0.01
-#define ONE_THRESHOLD		0.99
+#define ABSORPTION		0.8
+#define ZERO_THRESHOLD	0.01
 
 //--------------------------------------------------------------------------------------
 // Constant buffer
@@ -62,14 +61,10 @@ SamplerComparisonState g_smpShadow;
 //--------------------------------------------------------------------------------------
 min16float4 GetSample(float3 uvw, float mip = 0.0)
 {
-	min16float4 color = min16float4(g_txGrid.SampleLevel(g_smpLinear, uvw, mip));
+	float4 color = g_txGrid.SampleLevel(g_smpLinear, uvw, mip);
 	//min16float4 color = min16float4(0.0, 0.5, 1.0, 0.5);
-#ifdef _PRE_MULTIPLIED_
-	color.xyz *= DENSITY_SCALE;
-#endif
-	color.w *= DENSITY_SCALE;
 
-	return color;
+	return min16float4(color);
 }
 
 //--------------------------------------------------------------------------------------
@@ -98,24 +93,6 @@ float3 GetDensityGradient(float3 uvw)
 
 	return float3(q[1] - q[0], q[3] - q[2], q[5] - q[4]);
 }
-
-//--------------------------------------------------------------------------------------
-// Get translucency
-//--------------------------------------------------------------------------------------
-min16float GetTranslucency(min16float density, min16float step)
-{
-	return saturate(density * step * ABSORPTION);
-}
-
-//--------------------------------------------------------------------------------------
-// Get premultiplied color
-//--------------------------------------------------------------------------------------
-#ifdef _PRE_MULTIPLIED_
-min16float3 GetPremultiplied(min16float3 color, min16float step)
-{
-	return color * saturate(step * ABSORPTION);
-}
-#endif
 
 //--------------------------------------------------------------------------------------
 // Get occluded end point
@@ -220,12 +197,13 @@ float3 LocalToTex3DSpace(float3 pos)
 //--------------------------------------------------------------------------------------
 // Get step
 //--------------------------------------------------------------------------------------
-min16float GetStep(float dDensity, min16float transm, min16float opacity, min16float step)
+min16float GetStep(float dDensity, min16float transm, min16float density, min16float step)
 {
 #if 1
-	step *= min16float(clamp(0.5 / abs(dDensity), 1.0, 1.25));
-	step *= max((1.0 - transm) * 2.0, 1.0);
-	step *= max((1.0 - opacity) * 1.25, 1.0);
+	const min16float factorEv = min16float(min(1.0 / 256.0 / abs(dDensity), 2.0));
+	const min16float factorUi = min(1.0 - density, 1.0);
+	const min16float factorTh = 1.0 - transm;
+	step *= max(1.5 * factorEv * factorUi * factorTh, 1.0);
 #endif
 
 	return step;
@@ -254,14 +232,12 @@ void CastLightRay(inout min16float transm, float3 rayOrigin, float3 rayDir,
 
 		// Update step
 		const float dDensity = density - prevDensity;
-		const min16float opacity = saturate(density * step);
-		const min16float newStep = GetStep(dDensity, transm, opacity, stepScale);
+		const min16float newStep = GetStep(dDensity, transm, density, stepScale);
 		step = (step + newStep) * 0.5;
 		prevDensity = density;
 
 		// Attenuate ray-throughput along light direction
-		const min16float tansl = GetTranslucency(density, step);
-		transm *= 1.0 - tansl;
+		transm *= 1.0 - density * ABSORPTION;
 		if (transm < ZERO_THRESHOLD) break;
 
 		// Update position along light ray

@@ -46,12 +46,12 @@ VolumeRender::VolumeRender(uint32_t width, uint32_t height, std::wstring name) :
 	m_gridSize(128),
 	m_lightGridSize(128),
 	m_maxRaySamples(256),
-	m_maxLightSamples(64),
-	m_volumeFile(L""),
-	m_radianceFile(L""),
-	m_meshFileName("Assets/bunny.obj"),
-	m_volPosScale(0.0f, 0.0f, 0.0f, 10.0f),
-	m_meshPosScale(0.0f, -10.0f, 0.0f, 1.5f),
+	m_maxLightSamples(128),
+	m_volumeFile(L"Assets/cloud2.dds"),
+	m_radianceFile(L"Assets/Beach.dds"),
+	m_meshFileName("Assets/dragon.obj"),
+	m_volPosScale(0.0f, -4.0f, 0.0f, 14.0f),
+	m_meshPosScale(0.0f, -4.0f, 0.0f, 1.4f),
 	m_screenShot(0)
 {
 #if defined (_DEBUG)
@@ -434,7 +434,7 @@ void VolumeRender::OnKeyUp(uint8_t key)
 		m_animate = !m_animate;
 		break;
 	case 'M':
-		m_showMesh = !m_showMesh;
+		m_showMesh = m_meshFileName.empty() ? false : !m_showMesh;
 		break;
 	}
 }
@@ -522,10 +522,14 @@ void VolumeRender::ParseCommandLineArgs(wchar_t* argv[], int argc)
 				for (size_t j = 0; j < m_meshFileName.size(); ++j)
 					m_meshFileName[j] = static_cast<char>(argv[i][j]);
 			}
-			if (i + 1 < argc) m_meshPosScale.x = stof(argv[++i]);
-			if (i + 1 < argc) m_meshPosScale.y = stof(argv[++i]);
-			if (i + 1 < argc) m_meshPosScale.z = stof(argv[++i]);
-			if (i + 1 < argc) m_meshPosScale.w = stof(argv[++i]);
+			if (!m_meshFileName.empty())
+			{
+				if (i + 1 < argc) m_meshPosScale.x = stof(argv[++i]);
+				if (i + 1 < argc) m_meshPosScale.y = stof(argv[++i]);
+				if (i + 1 < argc) m_meshPosScale.z = stof(argv[++i]);
+				if (i + 1 < argc) m_meshPosScale.w = stof(argv[++i]);
+			}
+			m_showMesh = !m_meshFileName.empty();
 		}
 		else if (wcsncmp(argv[i], L"-gridSize", wcslen(argv[i])) == 0 ||
 			wcsncmp(argv[i], L"/gridSize", wcslen(argv[i])) == 0)

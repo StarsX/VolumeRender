@@ -42,7 +42,8 @@ ObjectRenderer::ObjectRenderer() :
 	m_shadowMapSize(1024),
 	m_lightPt(75.0f, 75.0f, -75.0f),
 	m_lightColor(1.0f, 0.7f, 0.3f, 1.0f),
-	m_ambient(0.0f, 0.3f, 1.0f, 0.4f)
+	m_ambient(0.0f, 0.3f, 1.0f, 0.4f),
+	m_sceneSize(1.0f)
 {
 	m_shaderLib = ShaderLib::MakeUnique();
 }
@@ -64,13 +65,16 @@ bool ObjectRenderer::Init(CommandList* pCommandList, const DescriptorTableLib::s
 	SetWorld(posScale.w, XMFLOAT3(posScale.x, posScale.y, posScale.z));
 
 	// Load inputs
-	ObjLoader objLoader;
-	if (!objLoader.Import(fileName, true, true)) return false;
-	XUSG_N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
-	XUSG_N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
-	const auto& aabb = objLoader.GetAABB();
-	const XMFLOAT3 ext(aabb.Max.x - aabb.Min.x, aabb.Max.y - aabb.Min.y, aabb.Max.z - aabb.Min.z);
-	m_sceneSize = (max)(ext.x, (max)(ext.y, ext.z)) * posScale.w;
+	if (fileName && *fileName)
+	{
+		ObjLoader objLoader;
+		if (!objLoader.Import(fileName, true, true)) return false;
+		XUSG_N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
+		XUSG_N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
+		const auto& aabb = objLoader.GetAABB();
+		const XMFLOAT3 ext(aabb.Max.x - aabb.Min.x, aabb.Max.y - aabb.Min.y, aabb.Max.z - aabb.Min.z);
+		m_sceneSize = (max)(ext.x, (max)(ext.y, ext.z)) * posScale.w;
+	}
 
 	// Create resources
 	const auto smFormat = Format::D16_UNORM;
